@@ -1,6 +1,10 @@
 import express from "express";
+import fs from "fs";
+import path from "path";
+import { tmpdir } from "os";
 import { execFile, spawn } from "child_process";
 import { createServer as createViteServer } from "vite";
+import crypto from "crypto";
 
 async function start() {
   const app = express();
@@ -22,29 +26,27 @@ async function start() {
     const { url } = req.query;
     if (!url) return res.status(400).send("Falta la URL");
 
-    execFile("yt-dlp", ["-j", url], (err, stdout, stderr) => {
+    const args = [
+      "--ignore-config",
+      "--no-warnings",
+      "--skip-download",
+      "-J",
+      url
+    ];
+
+    execFile("yt-dlp", args, (err, stdout, stderr) => {
       if (err) {
         console.error("yt-dlp error:", stderr || err);
-        return res.status(500).json({
-          error: "Error al obtener info",
-          details: stderr?.toString() || err.message,
-        });
+        return res.status(500).json({ error: "Error al obtener info" });
       }
-
       try {
         const data = JSON.parse(stdout);
-
-        res.json({
-          title: data.title,
-          thumbnail: data.thumbnail,
-          url,
-        });
-      } catch (parseErr) {
-        console.error("Error parseando JSON:", parseErr);
-        res.status(500).json({
-          error: "Error parseando JSON de yt-dlp",
-          raw: stdout,
-        });
+        const title = data.title || (data.entries && data.entries[0]?.title) || "Sin título";
+        const thumbnail = data.thumbnail || (data.entries && data.entries[0]?.thumbnail) || "";
+        return res.json({ title, thumbnail, url });
+      } catch (e) {
+        console.error("Error parseando JSON:", e);
+        return res.status(500).json({ error: "Error parseando JSON de yt-dlp" });
       }
     });
   });
@@ -55,16 +57,32 @@ async function start() {
     if (!url) return res.status(400).send("Falta la URL");
     const format =
       type === "audio"
-        ? "bestaudio[ext=mp3]"
-        : "bv*[ext=mp4]+ba[ext=mp3]/b[ext=mp4]";
+        ? "bestaudio[ext=m4a]/bestaudio[acodec*=opus]/bestaudio"
+        : "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b";
 
-    const ext = type === "audio" ? "mp3" : "mp4";
-    const filename = safeTitle(title || "download") + "." + ext;
-    const filepath = path.join(tmpdir(), filename);
+    const id = crypto.randomUUID();
+    const outTemplate = path.join(tmpdir(), `${id}.%(ext)s`);
 
-    console.log(`📥 Descargando ${url} en formato ${format} -> ${filepath}`);
+    const args = [
+      "--ignore-config",
+      "--no-warnings",
+      "--no-progress",
+      "--no-check-formats",
+      "--concurrent-fragments", "1",
+      // "--cookies-from-browser", "chrome",
+      // "--cookies-from-browser", "edge",
+      "-f", format,
+      "-o", outTemplate,
+      "--print", "after_move:filepath",
+      url
+    ];
 
-    const child = spawn("yt-dlp", ["-f", format, "-o", filepath, url]);
+    console.log(`📥 Descargando ${url} con formato: ${format}`);
+    const child = spawn("yt-dlp", args, { shell: false });
+
+    let printed = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", chunk => { printed += chunk; });
 
     child.stderr.on("data", (data) => console.error("yt-dlp:", data.toString()));
 
@@ -72,10 +90,26 @@ async function start() {
       if (code !== 0) {
         return res.status(500).send("Error en la descarga con yt-dlp");
       }
-      res.download(filepath, filename, (err) => {
-        if (!err) {
-          fs.unlink(filepath, () => {});
-        }
+
+      let filePath = printed.trim().split(/\r?\n/).filter(Boolean).pop();
+
+      if (!filePath) {
+        const files = fs.readdirSync(tmpdir())
+          .filter(n => n.startsWith(id + "."))
+          .map(n => path.join(tmpdir(), n));
+        filePath = files[0];
+      }
+
+      if (!filePath || !fs.existsSync(filePath)) {
+        return res.status(500).send("No se pudo localizar el archivo descargado");
+      }
+
+      const realExt = path.extname(filePath).replace(".", "") || (type === "audio" ? "m4a" : "mp4");
+      const niceName = `${safeTitle(title || "download")}.${realExt}`;
+
+      res.download(filePath, niceName, (err) => {
+        fs.unlink(filePath, () => {});
+        if (err) console.error("Error enviando el archivo:", err);
       });
     });
   });

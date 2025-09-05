@@ -1,7 +1,10 @@
 <template>
   <div class="container">
     <h1>Descargar de YouTube</h1>
-    <input v-model="url" type="text" placeholder="Pega el enlace de YouTube" />
+    <div class="input-group">
+      <input v-model="url" type="text" placeholder="Pega el enlace de YouTube" />
+      <button class="paste-btn" @click="pasteFromClipboard" title="Pegar desde portapapeles">📋</button>
+    </div>
     <div class="action-buttons">
       <button @click="analyze">Analizar</button>
       <button @click="clear">Borrar</button>
@@ -10,7 +13,7 @@
       <img :src="info.thumbnail" alt="Miniatura" />
       <h2>{{ info.title }}</h2>
       <div class="buttons">
-        <button @click="download('video')">Descargar Video</button>
+        <!-- futura adicion <button @click="download('video')">Descargar Video</button> -->
         <button @click="download('audio')">Descargar Audio</button>
       </div>
     </div>
@@ -35,11 +38,31 @@
     text-align: center;
   }
 
-  input {
+  .input-group {
+    display: flex;
+    align-items: center;
     width: 300px;
-    padding: 0.5rem;
     border: 1px solid #ccc;
     border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .input-group input {
+    flex: 1;
+    padding: 0.5rem;
+    border: none;
+    outline: none;
+  }
+
+  .paste-btn {
+    background: #e5e7eb;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 1.2rem;
+  }
+  .paste-btn:hover {
+    background: #d1d5db;
   }
 
   button {
@@ -88,11 +111,19 @@
   const url = ref("")
   const info = ref(null)
 
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText()
+      url.value = text
+    } catch (err) {
+      alert("No se pudo acceder al portapapeles")
+    }
+  }
+
   function clear() {
     url.value = ""
     info.value = null
   }
-
 
   async function analyze() {
     if (!url.value) {
