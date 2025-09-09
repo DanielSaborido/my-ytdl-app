@@ -40,15 +40,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     min-height: 100vh;
     gap: 1rem;
     padding: 1.5rem;
     box-sizing: border-box;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
   }
 
   h1 {
-    font-size: 1.5rem;
+    font-size: 2rem;
     font-weight: bold;
     text-align: center;
   }
@@ -56,7 +59,8 @@
   .input-group {
     display: flex;
     align-items: center;
-    width: 300px;
+    width: 100%;
+    max-width: 500px;
     border: 1px solid #ccc;
     border-radius: 6px;
     overflow: hidden;
@@ -64,69 +68,79 @@
 
   .input-group input {
     flex: 1;
-    padding: 0.5rem;
+    padding: 0.75rem;
     border: none;
     outline: none;
+    font-size: 1rem;
   }
 
   .paste-btn {
     background: #e5e7eb;
     border: none;
-    padding: 0.5rem 0.75rem;
+    padding: 0.75rem 1rem;
     cursor: pointer;
     font-size: 1.2rem;
+    flex-shrink: 0;
   }
   .paste-btn:hover {
     background: #d1d5db;
   }
 
+  .action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 500px;
+  }
+  .action-buttons button {
+    flex: 1 1 120px;
+    min-width: 100px;
+    text-align: center;
+  }
+  .action-buttons button:nth-of-type(1) { background-color: #f59e0b; }
+  .action-buttons button:nth-of-type(2) { background-color: #ef4444; }
+
   button {
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     border: none;
     border-radius: 6px;
     color: white;
     cursor: pointer;
+    font-size: 1rem;
   }
-
-  .action-buttons {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .action-buttons button:nth-of-type(1) { background-color: #f59e0b; }
-  .action-buttons button:nth-of-type(2) { background-color: #ef4444; }
-  .buttons button:nth-of-type(1) { background-color: #2563eb; }
-  .buttons button:nth-of-type(2) { background-color: #16a34a; }
 
   .info, .playlist {
     border: 1px solid #ccc;
     padding: 1rem;
     border-radius: 6px;
     text-align: center;
-    max-width: 350px;
     width: 100%;
+    max-width: 700px;
+    box-sizing: border-box;
   }
   .info img {
     width: 100%;
+    height: auto;
     border-radius: 6px;
+    max-height: 300px;
+    object-fit: cover;
   }
 
   .playlist-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 1rem;
     margin-top: 1rem;
   }
   .playlist-item {
     display: flex;
+    flex-direction: column;
     gap: 0.75rem;
-    align-items: center;
     border: 1px solid #ddd;
-    padding: 0.5rem;
+    padding: 0.75rem;
     border-radius: 6px;
-  }
-  .playlist-item img {
-    width: 120px;
-    border-radius: 6px;
+    text-align: left;
   }
   .playlist-details {
     flex: 1;
@@ -137,10 +151,23 @@
 
   .buttons {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
   .buttons button {
-    flex: 1;
+    flex: 1 1 120px;
+  }
+  .buttons button:nth-of-type(1) { background-color: #2563eb; }
+  .buttons button:nth-of-type(2) { background-color: #16a34a; }
+
+  @media (min-width: 600px) {
+    .playlist-list {
+      grid-template-columns: 1fr 1fr;
+    }
+    .playlist-item {
+      flex-direction: row;
+      align-items: center;
+    }
   }
 </style>
 
