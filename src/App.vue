@@ -19,19 +19,14 @@
     </div>
     <div v-if="info && info.type === 'playlist'" class="playlist">
       <h2>📂 {{ info.title }}</h2>
-      <div class="playlist-list">
-        <div v-for="video in info.videos" :key="video.url" class="playlist-item">
-          <div class="playlist-details">
-            <p>{{ video.title }}</p>
-            <div class="buttons">
-              <!-- futura adicion <button @click="download('video', video)">Video</button> -->
-              <button @click="download('audio', video)">Audio</button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ul class="playlist-list">
+        <li v-for="video in info.videos" :key="video.url" class="playlist-item">
+          <span class="title">{{ video.title }}</span>
+          <!-- futura adicion <button @click="download('video', video)">Descargar Video</button> -->
+          <button @click="download('audio', video)">Audio</button>
+        </li>
+      </ul>
     </div>
-
   </div>
 </template>
 
@@ -110,7 +105,7 @@
     font-size: 1rem;
   }
 
-  .info, .playlist {
+  .info {
     border: 1px solid #ccc;
     padding: 1rem;
     border-radius: 6px;
@@ -127,26 +122,56 @@
     object-fit: cover;
   }
 
-  .playlist-list {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-  .playlist-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    border: 1px solid #ddd;
-    padding: 0.75rem;
+  .playlist {
+    border: 1px solid #ccc;
+    padding: 1rem;
     border-radius: 6px;
+    width: 100%;
+    max-width: 700px;
+    box-sizing: border-box;
     text-align: left;
   }
-  .playlist-details {
-    flex: 1;
+  .playlist h2 {
+    margin-bottom: 1rem;
+  }
+  .playlist-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+  .playlist-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #eee;
+    font-size: 0.95rem;
+  }
+  .playlist-item:last-child {
+    border-bottom: none;
+  }
+  .playlist-item .title {
+    flex: 1;
+    margin-right: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .playlist-item button {
+    background-color: #2563eb;
+    border: none;
+    border-radius: 4px;
+    padding: 0.4rem 0.75rem;
+    color: white;
+    font-size: 0.85rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .playlist-item button:hover {
+    background-color: #1e40af;
   }
 
   .buttons {
