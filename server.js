@@ -31,19 +31,43 @@ async function start() {
       "--no-warnings",
       "--skip-download",
       "-J",
+      url.includes("playlist?list=") ? "--flat-playlist" : "",
       url
-    ];
+    ].filter(Boolean);
 
-    execFile("yt-dlp", args, (err, stdout, stderr) => {
-      if (err) {
-        console.error("yt-dlp error:", stderr || err);
+    const child = spawn("yt-dlp", args, { shell: false });
+
+    let output = "";
+    let errOutput = "";
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { output += chunk; });
+    child.stderr.on("data", (data) => { errOutput += data.toString(); });
+
+    child.on("close", (code) => {
+      if (code !== 0) {
+        console.error("yt-dlp error:", errOutput);
         return res.status(500).json({ error: "Error al obtener info" });
       }
       try {
-        const data = JSON.parse(stdout);
-        const title = data.title || (data.entries && data.entries[0]?.title) || "Sin título";
-        const thumbnail = data.thumbnail || (data.entries && data.entries[0]?.thumbnail) || "";
-        return res.json({ title, thumbnail, url });
+        const data = JSON.parse(output);
+        if (Array.isArray(data.entries)) {
+          const videos = data.entries.map(entry => ({
+            title: entry.title || "Sin título",
+            url: entry.url
+              ? `https://www.youtube.com/watch?v=${entry.id || entry.url}`
+              : ""
+          }));
+          return res.json({ type: "playlist", title: data.title, videos });
+        } else {
+          const video = {
+            type: "video",
+            title: data.title || "Sin título",
+            thumbnail: data.thumbnail || "",
+            url: data.webpage_url || url
+          };
+          return res.json(video);
+        }
       } catch (e) {
         console.error("Error parseando JSON:", e);
         return res.status(500).json({ error: "Error parseando JSON de yt-dlp" });

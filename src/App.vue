@@ -9,14 +9,29 @@
       <button @click="analyze">Analizar</button>
       <button @click="clear">Borrar</button>
     </div>
-    <div v-if="info" class="info">
+    <div v-if="info && info.type === 'video'" class="info">
       <img :src="info.thumbnail" alt="Miniatura" />
       <h2>{{ info.title }}</h2>
       <div class="buttons">
-        <!-- futura adicion <button @click="download('video')">Descargar Video</button> -->
-        <button @click="download('audio')">Descargar Audio</button>
+        <!-- futura adicion <button @click="download('video', info)">Descargar Video</button> -->
+        <button @click="download('audio', info)">Descargar Audio</button>
       </div>
     </div>
+    <div v-if="info && info.type === 'playlist'" class="playlist">
+      <h2>📂 {{ info.title }}</h2>
+      <div class="playlist-list">
+        <div v-for="video in info.videos" :key="video.url" class="playlist-item">
+          <div class="playlist-details">
+            <p>{{ video.title }}</p>
+            <div class="buttons">
+              <!-- futura adicion <button @click="download('video', video)">Video</button> -->
+              <button @click="download('audio', video)">Audio</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -82,23 +97,47 @@
   .buttons button:nth-of-type(1) { background-color: #2563eb; }
   .buttons button:nth-of-type(2) { background-color: #16a34a; }
 
-  .info {
+  .info, .playlist {
     border: 1px solid #ccc;
     padding: 1rem;
     border-radius: 6px;
     text-align: center;
     max-width: 350px;
+    width: 100%;
   }
-
   .info img {
     width: 100%;
     border-radius: 6px;
   }
 
+  .playlist-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .playlist-item {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+    border-radius: 6px;
+  }
+  .playlist-item img {
+    width: 120px;
+    border-radius: 6px;
+  }
+  .playlist-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
   .buttons {
     display: flex;
     gap: 0.5rem;
-    margin-top: 0.5rem;
   }
   .buttons button {
     flex: 1;
@@ -136,17 +175,20 @@
       if (!res.ok) throw new Error("Error analizando enlace")
 
       info.value = await res.json()
+      console.log(info.value)
     } catch (err) {
       console.error(err)
       alert("No se pudo analizar el enlace")
     }
   }
 
-  function download(type) {
-    if (!url.value) {
-      alert("Pega un enlace válido de YouTube")
+  function download(type, video) {
+    if (!video?.url) {
+      alert("No se encontró el enlace del video")
       return
     }
-    window.open(`/api/download?url=${encodeURIComponent(url.value)}&type=${type}&title=${encodeURIComponent(info.value.title)}`)
+    window.open(
+      `/api/download?url=${encodeURIComponent(video.url)}&type=${type}&title=${encodeURIComponent(video.title)}`
+    )
   }
 </script>
