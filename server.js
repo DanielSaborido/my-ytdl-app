@@ -183,7 +183,7 @@ async function start() {
         archive.pipe(res);
 
         for (const file of files) {
-          archive.file(file, { name: path.basename(file) });
+          archive.file(file, { name: safeTitle(path.basename(file)) });
         }
 
         archive.finalize();
