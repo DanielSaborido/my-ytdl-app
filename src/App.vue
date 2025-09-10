@@ -19,6 +19,7 @@
     </div>
     <div v-if="info && info.type === 'playlist'" class="playlist">
       <h2>📂 {{ info.title }}</h2>
+      <button class="download-all" @click="downloadPlaylist(info)">⬇ Descargar todo en audio (ZIP)</button>
       <ul class="playlist-list">
         <li v-for="video in info.videos" :key="video.url" class="playlist-item">
           <span class="title">{{ video.title }}</span>
@@ -134,6 +135,18 @@
   .playlist h2 {
     margin-bottom: 1rem;
   }
+  .download-all {
+    background-color: #10b981;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 1rem;
+  }
+  .download-all:hover {
+    background-color: #059669;
+  }
   .playlist-list {
     list-style: none;
     padding: 0;
@@ -242,5 +255,11 @@
     window.open(
       `/api/download?url=${encodeURIComponent(video.url)}&type=${type}&title=${encodeURIComponent(video.title)}`
     )
+  }
+
+  function downloadPlaylist(info) {
+    window.open(
+      `/api/download-playlist?url=${encodeURIComponent(url.value)}&title=${encodeURIComponent(info.title)}`
+    );
   }
 </script>
