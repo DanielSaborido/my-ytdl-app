@@ -19,14 +19,17 @@
     </div>
     <div v-if="info && info.type === 'playlist'" class="playlist">
       <h2>📂 {{ info.title }}</h2>
-      <button class="download-all" @click="downloadPlaylist(info)">⬇ Descargar todo en audio (ZIP)</button>
-      <ul class="playlist-list">
-        <li v-for="video in info.videos" :key="video.url" class="playlist-item">
-          <span class="title">{{ video.title }}</span>
-          <!-- futura adicion <button @click="download('video', video)">Descargar Video</button> -->
-          <button @click="download('audio', video)">Audio</button>
-        </li>
-      </ul>
+      <button class="download-all" @click="downloadPlaylist('audio', info)">⬇ Descargar todo en audio (ZIP)</button>
+      <!-- futura adicion <button @click="download('video', info)">⬇ Descargar todo en video (ZIP)</button> -->
+      <div class="playlist-scroll">
+        <ul class="playlist-list">
+          <li v-for="video in info.videos" :key="video.url" class="playlist-item">
+            <span class="title">{{ video.title }}</span>
+            <!-- futura adicion <button @click="download('video', video)">Descargar Video</button> -->
+            <button @click="download('audio', video)">Audio</button>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
@@ -147,6 +150,12 @@
   .download-all:hover {
     background-color: #059669;
   }
+  .playlist-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+  }
   .playlist-list {
     list-style: none;
     padding: 0;
@@ -257,9 +266,9 @@
     )
   }
 
-  function downloadPlaylist(info) {
+  function downloadPlaylist(type, info) {
     window.open(
-      `/api/download-playlist?url=${encodeURIComponent(url.value)}&title=${encodeURIComponent(info.title)}`
+      `/api/download-playlist?url=${encodeURIComponent(url.value)}&type=${type}&title=${encodeURIComponent(info.title)}`
     );
   }
 </script>

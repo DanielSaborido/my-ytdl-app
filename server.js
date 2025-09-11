@@ -18,6 +18,7 @@ async function start() {
       .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "_")
       .replace(/[^\x20-\x7E]/g, "")
       .replace(/\s+/g, " ")
+      .replace(/\./g, "")
       .slice(0, 100)
       .trim();
   }
@@ -127,8 +128,9 @@ async function start() {
         return res.status(500).send("No se pudo localizar el archivo descargado");
       }
 
-      const realExt = path.extname(filePath).replace(".", "") || (type === "audio" ? "m4a" : "mp4");
-      const niceName = `${safeTitle(title || "download")}.${realExt}`;
+      const realExt = path.extname(filePath).replace(".", "") || (type === "audio" ? "mp3" : "mp4");
+      const niceName = `${safeTitle(title || "download")}.${type === "audio" ? "mp3" : realExt}`;
+      console.log(`${niceName}`);
 
       res.download(filePath, niceName, (err) => {
         fs.unlink(filePath, () => {});
@@ -139,8 +141,12 @@ async function start() {
 
   // API para descarga de playlist completa de YouTube
   app.get("/api/download-playlist", (req, res) => {
-    const { url, title } = req.query;
+    const { url, type, title } = req.query;
     if (!url) return res.status(400).send("Falta la URL");
+    const format =
+      type === "audio"
+        ? "bestaudio[ext=m4a]/bestaudio[acodec*=opus]/bestaudio"
+        : "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b";
 
     const id = crypto.randomUUID();
     const outDir = path.join(tmpdir(), id);
@@ -152,7 +158,7 @@ async function start() {
       "--ignore-config",
       "--no-warnings",
       "--no-progress",
-      "-f", "bestaudio[ext=m4a]/bestaudio[acodec*=opus]/bestaudio",
+      "-f", format,
       "-o", outTemplate,
       url
     ];
@@ -183,7 +189,8 @@ async function start() {
         archive.pipe(res);
 
         for (const file of files) {
-          archive.file(file, { name: safeTitle(path.basename(file)) });
+          console.log(`${file}`);
+          archive.file(file, { name: safeTitle(path.basename(file)).slice(0, -3)+(type === "audio" ? ".mp3" : ".mp4") });
         }
 
         archive.finalize();
