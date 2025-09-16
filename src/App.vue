@@ -1,5 +1,5 @@
 <script setup>
-import { url, info, pasteFromClipboard, clear, analyze, download, downloadPlaylist } from "./App.js"
+import { url, info, pasteFromClipboard, clear, analyze, download } from "./App.js"
 </script>
 
 <style src="./App.css"></style>
@@ -25,7 +25,7 @@ import { url, info, pasteFromClipboard, clear, analyze, download, downloadPlayli
     </div>
     <div v-if="info && info.type === 'playlist'" class="playlist">
       <h2>📂 {{ info.title }}</h2>
-      <button class="download-all" @click="downloadPlaylist('audio', info)">⬇ Descargar todo en audio (ZIP)</button>
+      <button class="download-all" @click="download('audio', info)">⬇ Descargar todo en audio (ZIP)</button>
       <!-- futura adicion <button @click="download('video', info)">⬇ Descargar todo en video (ZIP)</button> -->
       <div class="playlist-scroll">
         <ul class="playlist-list">

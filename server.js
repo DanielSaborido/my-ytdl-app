@@ -60,7 +60,7 @@ async function start() {
               ? `https://www.youtube.com/watch?v=${entry.id || entry.url}`
               : ""
           }));
-          return res.json({ type: "playlist", title: data.title, videos });
+          return res.json({ type: "playlist", url: data.webpage_url || url, title: data.title, videos });
         } else {
           const video = {
             type: "video",
@@ -79,10 +79,10 @@ async function start() {
 
   // API para descarga de YouTube
   app.get("/api/download", (req, res) => {
-    const { url, type, title } = req.query;
+    const { url, extension, title } = req.query;
     if (!url) return res.status(400).send("Falta la URL");
     const format =
-      type === "audio"
+      extension === "audio"
         ? "bestaudio[ext=m4a]/bestaudio[acodec*=opus]/bestaudio"
         : "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b";
 
@@ -128,8 +128,8 @@ async function start() {
         return res.status(500).send("No se pudo localizar el archivo descargado");
       }
 
-      const realExt = path.extname(filePath).replace(".", "") || (type === "audio" ? "mp3" : "mp4");
-      const niceName = `${safeTitle(title || "download")}.${type === "audio" ? "mp3" : realExt}`;
+      const realExt = path.extname(filePath).replace(".", "") || (extension === "audio" ? "mp3" : "mp4");
+      const niceName = `${safeTitle(title || "download")}.${extension === "audio" ? "mp3" : realExt}`;
       console.log(`${niceName}`);
 
       res.download(filePath, niceName, (err) => {
@@ -141,10 +141,10 @@ async function start() {
 
   // API para descarga de playlist completa de YouTube
   app.get("/api/download-playlist", (req, res) => {
-    const { url, type, title } = req.query;
+    const { url, extension, title } = req.query;
     if (!url) return res.status(400).send("Falta la URL");
     const format =
-      type === "audio"
+      extension === "audio"
         ? "bestaudio[ext=m4a]/bestaudio[acodec*=opus]/bestaudio"
         : "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b";
 
@@ -190,7 +190,7 @@ async function start() {
 
         for (const file of files) {
           console.log(`${file}`);
-          archive.file(file, { name: safeTitle(path.basename(file)).slice(0, -3)+(type === "audio" ? ".mp3" : ".mp4") });
+          archive.file(file, { name: safeTitle(path.basename(file)).slice(0, -3)+(extension === "audio" ? ".mp3" : ".mp4") });
         }
 
         archive.finalize();
