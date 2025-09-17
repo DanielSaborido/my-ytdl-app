@@ -81,10 +81,9 @@ async function start() {
   app.get("/api/download", (req, res) => {
     const { url, extension, title } = req.query;
     if (!url) return res.status(400).send("Falta la URL");
-    const format =
-      extension === "audio"
-        ? "bestaudio[ext=m4a]/bestaudio[acodec*=opus]/bestaudio"
-        : "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b";
+    const format = extension === "audio"
+      ? "bestaudio[ext=m4a]/bestaudio"
+      : "best[ext=mp4][height<=1080]";
 
     const id = crypto.randomUUID();
     const outTemplate = path.join(tmpdir(), `${id}.%(ext)s`);
@@ -114,24 +113,18 @@ async function start() {
       if (code !== 0) {
         return res.status(500).send("Error en la descarga con yt-dlp");
       }
-
       let filePath = printed.trim().split(/\r?\n/).filter(Boolean).pop();
-
       if (!filePath) {
         const files = fs.readdirSync(tmpdir())
           .filter(n => n.startsWith(id + "."))
           .map(n => path.join(tmpdir(), n));
         filePath = files[0];
       }
-
       if (!filePath || !fs.existsSync(filePath)) {
         return res.status(500).send("No se pudo localizar el archivo descargado");
       }
-
-      const realExt = path.extname(filePath).replace(".", "") || (extension === "audio" ? "mp3" : "mp4");
-      const niceName = `${safeTitle(title || "download")}.${extension === "audio" ? "mp3" : realExt}`;
+      const niceName = `${safeTitle(title || "download")}.${extension === "audio" ? "mp3" : "mp4"}`;
       console.log(`${niceName}`);
-
       res.download(filePath, niceName, (err) => {
         fs.unlink(filePath, () => {});
         if (err) console.error("Error enviando el archivo:", err);
@@ -143,10 +136,9 @@ async function start() {
   app.get("/api/download-playlist", (req, res) => {
     const { url, extension, title } = req.query;
     if (!url) return res.status(400).send("Falta la URL");
-    const format =
-      extension === "audio"
-        ? "bestaudio[ext=m4a]/bestaudio[acodec*=opus]/bestaudio"
-        : "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/bv*+ba/b[ext=mp4]/b";
+    const format = extension === "audio"
+      ? "bestaudio[ext=m4a]/bestaudio"
+      : "best[ext=mp4][height<=1080]";
 
     const id = crypto.randomUUID();
     const outDir = path.join(tmpdir(), id);
@@ -162,21 +154,17 @@ async function start() {
       "-o", outTemplate,
       url
     ];
-
-    console.log(`📥 Descargando playlist en lote: ${url}`);
+    console.log(`📥 Descargando playlist en lote: ${url} como ${extension}`);
 
     const child = spawn("yt-dlp", args, { shell: false });
-
     child.stderr.on("data", (data) => console.error("yt-dlp:", data.toString()));
 
     child.on("close", async (code) => {
       if (code !== 0) {
         return res.status(500).send("Error en la descarga de playlist con yt-dlp");
       }
-
       try {
         const files = fs.readdirSync(outDir).map(n => path.join(outDir, n));
-
         if (!files.length) {
           return res.status(500).send("No se encontraron archivos de la playlist");
         }
@@ -190,7 +178,10 @@ async function start() {
 
         for (const file of files) {
           console.log(`${file}`);
-          archive.file(file, { name: safeTitle(path.basename(file)).slice(0, -3)+(extension === "audio" ? ".mp3" : ".mp4") });
+          archive.file(file, {
+            name: safeTitle(path.basename(file, path.extname(file))) +
+              (extension === "audio" ? ".mp3" : ".mp4")
+          });
         }
 
         archive.finalize();
