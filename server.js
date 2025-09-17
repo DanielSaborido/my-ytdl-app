@@ -55,6 +55,7 @@ async function start() {
         const data = JSON.parse(output);
         if (Array.isArray(data.entries)) {
           const videos = data.entries.map(entry => ({
+            type: "video",
             title: entry.title || "Sin título",
             url: entry.url
               ? `https://www.youtube.com/watch?v=${entry.id || entry.url}`
@@ -99,8 +100,6 @@ async function start() {
       "--print", "after_move:filepath",
       url
     ];
-
-    console.log(`📥 Descargando ${url} con formato: ${format}`);
     const child = spawn("yt-dlp", args, { shell: false });
 
     let printed = "";
@@ -124,7 +123,6 @@ async function start() {
         return res.status(500).send("No se pudo localizar el archivo descargado");
       }
       const niceName = `${safeTitle(title || "download")}.${extension === "audio" ? "mp3" : "mp4"}`;
-      console.log(`${niceName}`);
       res.download(filePath, niceName, (err) => {
         fs.unlink(filePath, () => {});
         if (err) console.error("Error enviando el archivo:", err);
@@ -154,7 +152,6 @@ async function start() {
       "-o", outTemplate,
       url
     ];
-    console.log(`📥 Descargando playlist en lote: ${url} como ${extension}`);
 
     const child = spawn("yt-dlp", args, { shell: false });
     child.stderr.on("data", (data) => console.error("yt-dlp:", data.toString()));
@@ -175,15 +172,12 @@ async function start() {
 
         const archive = archiver("zip", { zlib: { level: 9 } });
         archive.pipe(res);
-
         for (const file of files) {
-          console.log(`${file}`);
           archive.file(file, {
             name: safeTitle(path.basename(file, path.extname(file))) +
               (extension === "audio" ? ".mp3" : ".mp4")
           });
         }
-
         archive.finalize();
 
         archive.on("end", () => {

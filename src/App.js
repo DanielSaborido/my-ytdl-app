@@ -25,9 +25,7 @@ export async function analyze() {
   try {
     const res = await fetch(`/api/info?url=${encodeURIComponent(url.value)}`)
     if (!res.ok) throw new Error("Error analizando enlace")
-
     info.value = await res.json()
-    console.log(info.value)
   } catch (err) {
     console.error(err)
     alert("No se pudo analizar el enlace")
