@@ -6,6 +6,9 @@ import { execFile, spawn } from "child_process";
 import { createServer as createViteServer } from "vite";
 import crypto from "crypto";
 import archiver from "archiver";
+import { createServer as createViteServer } from "vite";
+const isProd = process.env.NODE_ENV === "production";
+const PORT = process.env.PORT || 5173;
 
 async function start() {
   const app = express();
@@ -43,8 +46,8 @@ async function start() {
     let errOutput = "";
 
     child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { output += chunk; });
-    child.stderr.on("data", (data) => { errOutput += data.toString(); });
+    child.stdout.on("data", chunk => { output += chunk; });
+    child.stderr.on("data", data => { errOutput += data.toString(); });
 
     child.on("close", (code) => {
       if (code !== 0) {
@@ -105,20 +108,12 @@ async function start() {
     let printed = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", chunk => { printed += chunk; });
-
-    child.stderr.on("data", (data) => console.error("yt-dlp:", data.toString()));
-
+    child.stderr.on("data", data => console.error("yt-dlp:", data.toString()));
     child.on("close", (code) => {
       if (code !== 0) {
         return res.status(500).send("Error en la descarga con yt-dlp");
       }
       let filePath = printed.trim().split(/\r?\n/).filter(Boolean).pop();
-      if (!filePath) {
-        const files = fs.readdirSync(tmpdir())
-          .filter(n => n.startsWith(id + "."))
-          .map(n => path.join(tmpdir(), n));
-        filePath = files[0];
-      }
       if (!filePath || !fs.existsSync(filePath)) {
         return res.status(500).send("No se pudo localizar el archivo descargado");
       }
@@ -141,7 +136,6 @@ async function start() {
     const id = crypto.randomUUID();
     const outDir = path.join(tmpdir(), id);
     fs.mkdirSync(outDir, { recursive: true });
-
     const outTemplate = path.join(outDir, "%(title)s.%(ext)s");
 
     const args = [
@@ -154,7 +148,7 @@ async function start() {
     ];
 
     const child = spawn("yt-dlp", args, { shell: false });
-    child.stderr.on("data", (data) => console.error("yt-dlp:", data.toString()));
+    child.stderr.on("data", data => console.error("yt-dlp:", data.toString()));
     child.on("close", async (code) => {
       if (code !== 0) {
         return res.status(500).send("Error en la descarga de playlist con yt-dlp");
@@ -190,12 +184,15 @@ async function start() {
     });
   });
 
-  // Crear servidor Vite en modo middleware
-  const vite = await createViteServer({ server: { middlewareMode: true } });
-  app.use(vite.middlewares);
-
-  const PORT = 5173;
+  if (isProd) {
+    app.use(express.static("dist"));
+    app.get("*", (req, res) => {
+      res.sendFile(path.resolve("dist", "index.html"));
+    });
+  } else {
+    const vite = await createViteServer({ server: { middlewareMode: true } });
+    app.use(vite.middlewares);
+  }
   app.listen(PORT, () => console.log(`✅ Servidor corriendo en http://localhost:${PORT}`));
 }
-
 start();

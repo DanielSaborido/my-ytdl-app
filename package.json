@@ -6,7 +6,7 @@
     "dev": "node server.js",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "NODE_ENV=production node server.js"
   },
   "dependencies": {
     "archiver": "^7.0.1",
