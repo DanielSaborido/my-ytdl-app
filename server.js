@@ -6,7 +6,6 @@ import { execFile, spawn } from "child_process";
 import { createServer as createViteServer } from "vite";
 import crypto from "crypto";
 import archiver from "archiver";
-import { createServer as createViteServer } from "vite";
 const isProd = process.env.NODE_ENV === "production";
 const PORT = process.env.PORT || 5173;
 
