@@ -155,7 +155,6 @@ async function start() {
 
     const child = spawn("yt-dlp", args, { shell: false });
     child.stderr.on("data", (data) => console.error("yt-dlp:", data.toString()));
-
     child.on("close", async (code) => {
       if (code !== 0) {
         return res.status(500).send("Error en la descarga de playlist con yt-dlp");

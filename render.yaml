@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: my-ytdl-app
+    env: node
+    plan: free
+    buildCommand: |
+      apt-get update && apt-get install -y ffmpeg
+      pip install yt-dlp
+      npm install
+    startCommand: "npm start"
+    autoDeploy: true

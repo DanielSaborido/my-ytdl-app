@@ -26,8 +26,8 @@ import { url, info, pasteFromClipboard, clear, analyze, download } from "./App.j
     <div v-if="info && info.type === 'playlist'" class="playlist">
       <h2>📂 {{ info.title }}</h2>
       <div class="buttons">
-        <button @click="download('video', info)">Descargar todos en ZIP como Videos</button>
-        <button @click="download('audio', info)">Descargar todos en ZIP como Audios</button>
+        <button @click="download('video', info)">Descargar Playlist como Video</button>
+        <button @click="download('audio', info)">Descargar Playlist como Audio</button>
       </div>
       <div class="playlist-scroll">
         <ul class="playlist-list">
