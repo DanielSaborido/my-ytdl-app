@@ -26,6 +26,7 @@ export async function analyze() {
     const res = await fetch(`/api/info?url=${encodeURIComponent(url.value)}`)
     if (!res.ok) throw new Error("Error analizando enlace")
     info.value = await res.json()
+    console.log(info.value)
   } catch (err) {
     console.error(err)
     alert("No se pudo analizar el enlace")
@@ -44,10 +45,34 @@ export async function download(extension, info) {
     return
   }
   try {
-    const apiUrl = info.type === "video"
-      ? `/api/download?url=${encodeURIComponent(info.url)}&extension=${extension}&title=${encodeURIComponent(info.title)}`
-      : `/api/download-playlist?url=${encodeURIComponent(info.url)}&extension=${extension}&title=${encodeURIComponent(info.title)}`
-    const res = await fetch(apiUrl)
+    if (Array.isArray(info.videos) && info.videos.length > 0 && info.type=='playlist') {
+      for (const video of info.videos) {
+        const apiUrl = `/api/download?url=${encodeURIComponent(video.url)}&extension=${extension}&title=${encodeURIComponent(video.title)}`;
+        console.log("⬇️ Descargando:", video.title);
+
+        const res = await fetch(apiUrl);
+        if (!res.ok) throw new Error(`Error descargando ${video.title}`);
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const contentDisp = res.headers.get("Content-Disposition");
+        const filename = getFilenameFromDisposition(contentDisp, `${video.title}.${extension === "audio" ? "mp3" : "mp4"}`);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        await new Promise(r => setTimeout(r, 3000));
+      }
+      alert("✅ Descargas completadas");
+      return;
+    }
+    const apiUrl = `/api/download?url=${encodeURIComponent(info.url)}&extension=${extension}&title=${encodeURIComponent(info.title)}`;
+    const res = await fetch(apiUrl);
     if (!res.ok) throw new Error("Error en la descarga")
 
     const blob = await res.blob()

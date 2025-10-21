@@ -124,65 +124,6 @@ async function start() {
     });
   });
 
-  // API para descarga de playlist completa de YouTube
-  app.get("/api/download-playlist", (req, res) => {
-    const { url, extension, title } = req.query;
-    if (!url) return res.status(400).send("Falta la URL");
-    const format = extension === "audio"
-      ? "bestaudio[ext=m4a]/bestaudio"
-      : "best[ext=mp4][height<=1080]";
-
-    const id = crypto.randomUUID();
-    const outDir = path.join(tmpdir(), id);
-    fs.mkdirSync(outDir, { recursive: true });
-    const outTemplate = path.join(outDir, "%(title)s.%(ext)s");
-
-    const args = [
-      "--ignore-config",
-      "--no-warnings",
-      "--no-progress",
-      "-f", format,
-      "-o", outTemplate,
-      url
-    ];
-
-    const child = spawn("yt-dlp", args, { shell: false });
-    child.stderr.on("data", data => console.error("yt-dlp:", data.toString()));
-    child.on("close", async (code) => {
-      if (code !== 0) {
-        return res.status(500).send("Error en la descarga de playlist con yt-dlp");
-      }
-      try {
-        const files = fs.readdirSync(outDir).map(n => path.join(outDir, n));
-        if (!files.length) {
-          return res.status(500).send("No se encontraron archivos de la playlist");
-        }
-
-        const zipName = `${safeTitle(title || "playlist")}.zip`;
-        res.setHeader("Content-Type", "application/zip");
-        res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
-
-        const archive = archiver("zip", { zlib: { level: 9 } });
-        archive.pipe(res);
-        for (const file of files) {
-          archive.file(file, {
-            name: safeTitle(path.basename(file, path.extname(file))) +
-              (extension === "audio" ? ".mp3" : ".mp4")
-          });
-        }
-        archive.finalize();
-
-        archive.on("end", () => {
-          for (const file of files) fs.unlink(file, () => {});
-          fs.rmdir(outDir, () => {});
-        });
-      } catch (err) {
-        console.error("Error creando zip:", err);
-        return res.status(500).send("Error creando el ZIP de la playlist");
-      }
-    });
-  });
-
   if (isProd) {
     app.use(express.static("dist"));
     app.get("*", (req, res) => {
