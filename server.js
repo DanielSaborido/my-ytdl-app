@@ -99,7 +99,6 @@ async function start() {
       const { videoId, playlistId } = extractYouTubeIds(url);
 
       if (playlistId) {
-        console.log(playlistId);
         const playlistUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
         const html = await fetch(playlistUrl).then(r => r.text());
 
@@ -107,10 +106,8 @@ async function start() {
         if (!initialDataMatch) {
           return res.status(500).json({ error: "No se pudo extraer ytInitialData" });
         }
-        console.log(initialDataMatch);
 
         const initialData = JSON.parse(initialDataMatch[1]);
-        console.log(initialData);
         const videos = initialData.contents
           ?.twoColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content
           ?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents?.[0]
@@ -127,7 +124,7 @@ async function start() {
 
         return res.json({
           type: "playlist",
-          title: safeTitle(playlistId),
+          title: safeTitle(initialData.metadata.playlistMetadataRenderer.title),
           url: playlistUrl,
           videos: entries
         });

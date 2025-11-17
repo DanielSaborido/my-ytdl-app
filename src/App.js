@@ -21,13 +21,11 @@ export function clear() {
  * 📌 ANALIZAR (INFO DE VIDEO O PLAYLIST)
  *****************************************/
 export async function analyze() {
-    console.log("hola")
   if (!url.value.trim()) {
     alert("Pega un enlace válido de YouTube")
     return
   }
   try {
-    console.log("hola")
     const res = await fetch(`/api/info?url=${encodeURIComponent(url.value)}`)
     if (!res.ok) throw new Error("Error analizando enlace")
     const data = await res.json()
