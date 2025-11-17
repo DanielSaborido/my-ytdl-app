@@ -2,126 +2,185 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { tmpdir } from "os";
-import { execFile, spawn } from "child_process";
-import { createServer as createViteServer } from "vite";
 import crypto from "crypto";
 import archiver from "archiver";
+import { createServer as createViteServer } from "vite";
+
 const isProd = process.env.NODE_ENV === "production";
 const PORT = process.env.PORT || 5173;
 
 async function start() {
   const app = express();
 
-  // Función para limpiar el título de manera segura
+  /**************************************
+   * SAFE FILENAME
+   **************************************/
   function safeTitle(title) {
-    return title
+    return (title || "file")
       .normalize("NFKD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "_")
       .replace(/[^\x20-\x7E]/g, "")
       .replace(/\s+/g, " ")
-      .replace(/\./g, "")
       .slice(0, 100)
       .trim();
   }
 
-  // API para analizar YouTube
-  app.get("/api/info", (req, res) => {
-    const { url } = req.query;
-    if (!url) return res.status(400).send("Falta la URL");
+  /**************************************
+   * EXTRAER ID YouTube
+   **************************************/
+  function extractYouTubeIds(raw) {
+    if (!raw) return { videoId: null, playlistId: null };
+    let s = raw.toString().trim();
+    if (!/^https?:\/\//i.test(s)) {
+      s = "https://" + s;
+    }
+    let url;
+    try {
+      url = new URL(s);
+    } catch (e) {
+      return { videoId: null, playlistId: null };
+    }
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    let videoId = null;
+    let playlistId = null;
 
-    const args = [
-      "--ignore-config",
-      "--no-warnings",
-      "--skip-download",
-      "-J",
-      url.includes("playlist?list=") ? "--flat-playlist" : "",
-      url
-    ].filter(Boolean);
+    if (host === "youtu.be") {
+      const p = url.pathname || "";
+      if (p.startsWith("/")) videoId = p.slice(1).split("/")[0] || null;
+    }
 
-    const child = spawn("yt-dlp", args, { shell: false });
-
-    let output = "";
-    let errOutput = "";
-
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", chunk => { output += chunk; });
-    child.stderr.on("data", data => { errOutput += data.toString(); });
-
-    child.on("close", (code) => {
-      if (code !== 0) {
-        console.error("yt-dlp error:", errOutput);
-        return res.status(500).json({ error: "Error al obtener info" });
+    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com" || host === "www.youtube.com") {
+      if (url.searchParams.has("v")) {
+        videoId = url.searchParams.get("v");
       }
-      try {
-        const data = JSON.parse(output);
-        if (Array.isArray(data.entries)) {
-          const videos = data.entries.map(entry => ({
+      if (url.searchParams.has("list")) {
+        playlistId = url.searchParams.get("list");
+      }
+      if (!videoId) {
+        const path = url.pathname || "";
+        const parts = path.split("/").filter(Boolean);
+        if (parts[0] === "embed" && parts[1]) videoId = parts[1];
+        if (!videoId && parts[0] === "v" && parts[1]) videoId = parts[1];
+      }
+    }
+
+    if (!videoId && /^[a-zA-Z0-9_-]{6,}$/.test(raw)) {
+      videoId = raw;
+    }
+
+    return {
+      videoId: videoId || null,
+      playlistId: playlistId || null
+    };
+  }
+
+  /**************************************
+   * EXTRAER PLAYER RESPONSE OFICIAL
+   **************************************/
+  async function getPlayerResponse(videoId) {
+    console.log(videoId)
+    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const html = await fetch(watchUrl).then(r => r.text());
+
+    const jsonMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});/s);
+    if (!jsonMatch) return null;
+
+    return JSON.parse(jsonMatch[1]);
+  }
+
+  /**************************************
+   * API: INFO (video o playlist)
+   **************************************/
+  app.get("/api/info", async (req, res) => {
+    try {
+      const { url } = req.query;
+      if (!url) return res.status(400).send("Falta la URL");
+      const { videoId, playlistId } = extractYouTubeIds(url);
+
+      if (playlistId) {
+        const playlistUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
+        const html = await fetch(playlistUrl).then(r => r.text());
+
+        const entries = [...html.matchAll(/"playlistVideoRenderer":\s*(\{.+?\})/gs)]
+          .map(m => JSON.parse(m[1]))
+          .map(v => ({
             type: "video",
-            title: entry.title || "Sin título",
-            url: entry.url
-              ? `https://www.youtube.com/watch?v=${entry.id || entry.url}`
-              : ""
+            title: v.title?.runs?.[0]?.text || "Sin título",
+            url: `https://www.youtube.com/watch?v=${v.videoId}`
           }));
-          return res.json({ type: "playlist", url: data.webpage_url || url, title: data.title, videos });
-        } else {
-          const video = {
-            type: "video",
-            title: data.title || "Sin título",
-            thumbnail: data.thumbnail || "",
-            url: data.webpage_url || url
-          };
-          return res.json(video);
-        }
-      } catch (e) {
-        console.error("Error parseando JSON:", e);
-        return res.status(500).json({ error: "Error parseando JSON de yt-dlp" });
+
+        return res.json({
+          type: "playlist",
+          title: safeTitle(playlistId),
+          url: playlistUrl,
+          videos: entries
+        });
       }
-    });
+
+      if (!videoId) return res.status(400).send("URL de YouTube inválida (no se pudo extraer ID)");
+
+      const pr = await getPlayerResponse(videoId);
+      if (!pr) return res.status(500).send("No se pudo obtener info del video");
+
+      return res.json({
+        type: "video",
+        title: pr.videoDetails?.title || "Sin título",
+        thumbnail: pr.videoDetails?.thumbnail?.thumbnails?.pop()?.url || "",
+        url: `https://www.youtube.com/watch?v=${videoId}`
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).send("Error analizando enlace");
+    }
   });
 
-  // API para descarga de YouTube
-  app.get("/api/download", (req, res) => {
-    const { url, extension, title } = req.query;
-    if (!url) return res.status(400).send("Falta la URL");
-    const format = extension === "audio"
-      ? "bestaudio[ext=m4a]/bestaudio"
-      : "best[ext=mp4][height<=1080]";
+  /**************************************
+   * API: DESCARGA DIRECTA DE AUDIO/VIDEO
+   **************************************/
+  app.get("/api/download", async (req, res) => {
+    try {
+      const { url, extension, title } = req.query;
+      if (!url) return res.status(400).send("Falta la URL");
+      const { videoId } = extractYouTubeIds(url);
+      if (!videoId) return res.status(400).send("ID de video no encontrado en la URL");
+      const pr = await getPlayerResponse(videoId);
+      if (!pr) return res.status(500).send("No se pudo obtener playerResponse");
+      const formats = pr.streamingData?.adaptiveFormats;
+      if (!formats) return res.status(500).send("No hay streams disponibles");
 
-    const id = crypto.randomUUID();
-    const outTemplate = path.join(tmpdir(), `${id}.%(ext)s`);
-
-    const args = [
-      "--ignore-config",
-      "--no-warnings",
-      "--no-progress",
-      "--no-check-formats",
-      "--concurrent-fragments", "1",
-      "-f", format,
-      "-o", outTemplate,
-      "--print", "after_move:filepath",
-      url
-    ];
-    const child = spawn("yt-dlp", args, { shell: false });
-
-    let printed = "";
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", chunk => { printed += chunk; });
-    child.stderr.on("data", data => console.error("yt-dlp:", data.toString()));
-    child.on("close", (code) => {
-      if (code !== 0) {
-        return res.status(500).send("Error en la descarga con yt-dlp");
+      let chosen;
+      if (extension === "audio") {
+        chosen =
+          formats.find(f => f.mimeType.includes("audio/mp4")) ||
+          formats.find(f => f.mimeType.includes("audio/webm")) ||
+          formats.find(f => f.mimeType.includes("audio"));
+      } else {
+        chosen =
+          formats.find(f => f.mimeType.includes("video/mp4") && f.height <= 1080 && f.mimeType.includes("video/mp4")) ||
+          formats.find(f => f.mimeType.includes("video/webm")) ||
+          formats.find(f => f.mimeType.includes("video"));
       }
-      let filePath = printed.trim().split(/\r?\n/).filter(Boolean).pop();
-      if (!filePath || !fs.existsSync(filePath)) {
-        return res.status(500).send("No se pudo localizar el archivo descargado");
-      }
-      const niceName = `${safeTitle(title || "download")}.${extension === "audio" ? "mp3" : "mp4"}`;
-      res.download(filePath, niceName, (err) => {
-        fs.unlink(filePath, () => {});
-        if (err) console.error("Error enviando el archivo:", err);
-      });
-    });
+      if (!chosen?.url)
+        return res.status(500).send("No se encontró stream válido");
+
+      const fileExt = extension === "audio"
+        ? chosen.mimeType.includes("webm") ? "webm" : "m4a"
+        : chosen.mimeType.includes("webm") ? "webm" : "mp4";
+      const filename = `${safeTitle(title)}.${fileExt}`;
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Type", chosen.mimeType.split(";")[0]);
+
+      console.log("➡️ Streaming directo:", filename);
+
+      const stream = await fetch(chosen.url);
+      stream.body.pipe(res);
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).send("Error descargando");
+    }
   });
 
   if (isProd) {
@@ -133,6 +192,9 @@ async function start() {
     const vite = await createViteServer({ server: { middlewareMode: true } });
     app.use(vite.middlewares);
   }
-  app.listen(PORT, () => console.log(`✅ Servidor corriendo en http://localhost:${PORT}`));
+
+  app.listen(PORT, () =>
+    console.log(`🚀 Servidor funcionando en http://localhost:${PORT}`)
+  );
 }
 start();

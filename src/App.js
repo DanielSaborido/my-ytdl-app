@@ -17,78 +17,84 @@ export function clear() {
   info.value = null
 }
 
+/*****************************************
+ * 📌 ANALIZAR (INFO DE VIDEO O PLAYLIST)
+ *****************************************/
 export async function analyze() {
-  if (!url.value) {
+  if (!url.value.trim()) {
     alert("Pega un enlace válido de YouTube")
     return
   }
   try {
     const res = await fetch(`/api/info?url=${encodeURIComponent(url.value)}`)
     if (!res.ok) throw new Error("Error analizando enlace")
-    info.value = await res.json()
-    console.log(info.value)
+    const data = await res.json()
+    info.value = data
+    console.log("INFO:", data)
   } catch (err) {
     console.error(err)
     alert("No se pudo analizar el enlace")
   }
 }
 
-function getFilenameFromDisposition(header, fallback = "download.mp4") {
+/*****************************************
+ * 📌 EXTRAER NOMBRE DESDE CONTENT-DISPOSITION
+ *****************************************/
+function getFilenameFromDisposition(header, fallback) {
   if (!header) return fallback
-  const match = /filename\*?=(?:UTF-8'')?["']?([^;"']+)["']?/i.exec(header)
-  return match ? decodeURIComponent(match[1]) : fallback
+  const m = /filename\*?=(?:UTF-8'')?["']?([^;"']+)/i.exec(header)
+  return m ? decodeURIComponent(m[1]) : fallback
 }
 
-export async function download(extension, info) {
-  if (!url.value) {
-    alert("No se encontró el enlace del video o playlist")
-    return
-  }
+/*****************************************
+ * 📌 DESCARGA INDIVIDUAL
+ *****************************************/
+async function downloadSingle(extension, video) {
+  const apiUrl = `/api/download?url=${encodeURIComponent(video.url)}&extension=${extension}&title=${encodeURIComponent(video.title)}`
+
+  console.log("⬇️ Descargando:", video.title)
+
+  const res = await fetch(apiUrl)
+  if (!res.ok) throw new Error(`Error descargando ${video.title}`)
+
+  const blob = await res.blob()
+  const url = window.URL.createObjectURL(blob)
+
+  const contentDisp = res.headers.get("Content-Disposition")
+  const ext = extension === "audio" ? "m4a" : "mp4"
+  const filename = getFilenameFromDisposition(contentDisp, `${video.title}.${ext}`)
+
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+/*****************************************
+ * 📌 DESCARGA GENERAL
+ *****************************************/
+export async function download(extension, target) {
+  if (!target) return
+
   try {
-    if (Array.isArray(info.videos) && info.videos.length > 0 && info.type=='playlist') {
-      for (const video of info.videos) {
-        const apiUrl = `/api/download?url=${encodeURIComponent(video.url)}&extension=${extension}&title=${encodeURIComponent(video.title)}`;
-        console.log("⬇️ Descargando:", video.title);
-
-        const res = await fetch(apiUrl);
-        if (!res.ok) throw new Error(`Error descargando ${video.title}`);
-
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const contentDisp = res.headers.get("Content-Disposition");
-        const filename = getFilenameFromDisposition(contentDisp, `${video.title}.${extension === "audio" ? "mp3" : "mp4"}`);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-
-        await new Promise(r => setTimeout(r, 3000));
+    // PLAYLIST → recorrer todos los videos
+    if (target.type === "playlist" && Array.isArray(target.videos)) {
+      for (const video of target.videos) {
+        await downloadSingle(extension, video)
+        await new Promise(r => setTimeout(r, 1500))  // pausa pequeña
       }
-      alert("✅ Descargas completadas");
-      return;
+      alert("✅ Descarga de playlist completada")
+      return
     }
-    const apiUrl = `/api/download?url=${encodeURIComponent(info.url)}&extension=${extension}&title=${encodeURIComponent(info.title)}`;
-    const res = await fetch(apiUrl);
-    if (!res.ok) throw new Error("Error en la descarga")
 
-    const blob = await res.blob()
-    const url = window.URL.createObjectURL(blob)
-    const contentDisp = res.headers.get("Content-Disposition")
-    const filename = getFilenameFromDisposition(contentDisp, `${info.title}.mp4`)
+    // VIDEO INDIVIDUAL
+    await downloadSingle(extension, target)
 
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    window.URL.revokeObjectURL(url)
   } catch (err) {
     console.error(err)
-    alert("No se pudo descargar el archivo")
+    alert("❌ No se pudo descargar este video")
   }
 }
