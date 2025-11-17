@@ -99,16 +99,31 @@ async function start() {
       const { videoId, playlistId } = extractYouTubeIds(url);
 
       if (playlistId) {
+        console.log(playlistId);
         const playlistUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
         const html = await fetch(playlistUrl).then(r => r.text());
 
-        const entries = [...html.matchAll(/"playlistVideoRenderer":\s*(\{.+?\})/gs)]
-          .map(m => JSON.parse(m[1]))
-          .map(v => ({
+        const initialDataMatch = html.match(/ytInitialData\s*=\s*(\{.+?\});<\/script>/s);
+        if (!initialDataMatch) {
+          return res.status(500).json({ error: "No se pudo extraer ytInitialData" });
+        }
+        console.log(initialDataMatch);
+
+        const initialData = JSON.parse(initialDataMatch[1]);
+        console.log(initialData);
+        const videos = initialData.contents
+          ?.twoColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content
+          ?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents?.[0]
+          ?.playlistVideoListRenderer?.contents || [];
+        const entries = videos.map(v => {
+          const video = v.playlistVideoRenderer;
+          return {
             type: "video",
-            title: v.title?.runs?.[0]?.text || "Sin título",
-            url: `https://www.youtube.com/watch?v=${v.videoId}`
-          }));
+            title: video?.title?.runs?.[0]?.text || "Sin título",
+            url: `https://www.youtube.com/watch?v=${video?.videoId}`
+          };
+        });
+        console.log(entries);
 
         return res.json({
           type: "playlist",
