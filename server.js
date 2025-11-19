@@ -119,11 +119,13 @@ async function start() {
           duration: obj.playlistVideoRenderer.lengthText?.runs?.[0]?.text || ""
         });
       }
-      const continuations = obj.playlistVideoListRenderer?.continuations;
-      if (Array.isArray(continuations) && continuations.length > 0) {
-        const nextContinuationData = continuations[0].nextContinuationData;
-        if (nextContinuationData?.continuation) {
-          nextToken = nextContinuationData.continuation;
+      const continuations = obj.playlistVideoListRenderer?.continuations || obj.playlistVideoListContinuation?.continuations;
+      if (Array.isArray(continuations)) {
+        for (const cont of continuations) {
+          const nextContinuationData = cont.nextContinuationData;
+          if (nextContinuationData?.continuation) {
+            nextToken = nextContinuationData.continuation;
+          }
         }
       }
       for (const k in obj) {
