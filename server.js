@@ -75,11 +75,104 @@ async function start() {
     };
   }
 
+  const YT_KEY = "AIzaSyAO_FJ2SlqUOrAgW2P9Wf5Kcp_FvN9UApo";
+
+  async function fetchInnerTube(body) {
+    const res = await fetch(
+      `https://www.youtube.com/youtubei/v1/browse?key=${YT_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }
+    );
+    return res.json();
+  }
+
+  function extractVideosFromRenderer(renderer) {
+    if (!renderer) return [];
+    let contents =
+      renderer?.playlistVideoListRenderer?.contents ??
+      renderer?.itemSectionRenderer?.contents ??
+      renderer?.expandedShelfContentsRenderer?.items ??
+      [];
+    return contents
+      .map(item => item.playlistVideoRenderer)
+      .filter(Boolean)
+      .map(v => ({
+        title: v.title?.runs?.[0]?.text || "Sin título",
+        videoId: v.videoId,
+        url: `https://www.youtube.com/watch?v=${v.videoId}`
+      }));
+  }
+
+  function extractVideos(json) {
+    let results = [];
+    let nextToken = null;
+
+    function dig(obj) {
+      if (!obj || typeof obj !== "object") return;
+      if (obj.playlistVideoRenderer) {
+        results.push({
+          videoId: obj.playlistVideoRenderer.videoId,
+          title: obj.playlistVideoRenderer.title?.runs?.[0]?.text || "",
+          duration: obj.playlistVideoRenderer.lengthText?.runs?.[0]?.text || ""
+        });
+      }
+      const continuations = obj.playlistVideoListRenderer?.continuations;
+      if (Array.isArray(continuations) && continuations.length > 0) {
+        const nextContinuationData = continuations[0].nextContinuationData;
+        if (nextContinuationData?.continuation) {
+          nextToken = nextContinuationData.continuation;
+        }
+      }
+      for (const k in obj) {
+        if (typeof obj[k] === "object") dig(obj[k]);
+      }
+    }
+    dig(json);
+    return { results, nextToken };
+  }
+
+  async function getFullPlaylist(playlistId) {
+    let results = [];
+    let nextToken = null;
+    let pageIndex = 1;
+
+    let json = await fetchInnerTube({
+      context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
+      browseId: `VL${playlistId}`
+    });
+    fs.writeFileSync("playlist_dump.json", JSON.stringify(json, null, 2));
+    console.log("📁 JSON guardado en playlist_dump.json");
+    let { results: pageVideos, nextToken: cont } = extractVideos(json);
+    results.push(...pageVideos);
+    nextToken = cont;
+    console.log("Página inicial:", results.length, "videos");
+
+    while (nextToken) {
+      json = await fetchInnerTube({
+        context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
+        continuation: nextToken
+      });
+      fs.writeFileSync(
+        `playlist_page_${pageIndex}.json`,
+        JSON.stringify(json, null, 2)
+      );
+      console.log(`📁 Guardada página ${pageIndex}`);
+      pageIndex++;
+      const { results: pageResults, nextToken: cont2 } = extractVideos(json);
+      results.push(...pageResults);
+      nextToken = cont2;
+      console.log("🔢 Total acumulado:", results.length);
+    }
+    return results;
+  }
+
   /**************************************
    * EXTRAER PLAYER RESPONSE OFICIAL
    **************************************/
   async function getPlayerResponse(videoId) {
-    console.log(videoId)
     const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const html = await fetch(watchUrl).then(r => r.text());
 
@@ -99,34 +192,12 @@ async function start() {
       const { videoId, playlistId } = extractYouTubeIds(url);
 
       if (playlistId) {
-        const playlistUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
-        const html = await fetch(playlistUrl).then(r => r.text());
-
-        const initialDataMatch = html.match(/ytInitialData\s*=\s*(\{.+?\});<\/script>/s);
-        if (!initialDataMatch) {
-          return res.status(500).json({ error: "No se pudo extraer ytInitialData" });
-        }
-
-        const initialData = JSON.parse(initialDataMatch[1]);
-        const videos = initialData.contents
-          ?.twoColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content
-          ?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents?.[0]
-          ?.playlistVideoListRenderer?.contents || [];
-        const entries = videos.map(v => {
-          const video = v.playlistVideoRenderer;
-          return {
-            type: "video",
-            title: video?.title?.runs?.[0]?.text || "Sin título",
-            url: `https://www.youtube.com/watch?v=${video?.videoId}`
-          };
-        });
-        console.log(entries);
-
+        const videos = await getFullPlaylist(playlistId);
         return res.json({
           type: "playlist",
-          title: safeTitle(initialData.metadata.playlistMetadataRenderer.title),
-          url: playlistUrl,
-          videos: entries
+          title: playlistId,
+          url,
+          videos
         });
       }
 
@@ -161,6 +232,7 @@ async function start() {
       if (!pr) return res.status(500).send("No se pudo obtener playerResponse");
       const formats = pr.streamingData?.adaptiveFormats;
       if (!formats) return res.status(500).send("No hay streams disponibles");
+      console.log(extension);
 
       let chosen;
       if (extension === "audio") {
@@ -168,14 +240,16 @@ async function start() {
           formats.find(f => f.mimeType.includes("audio/mp4")) ||
           formats.find(f => f.mimeType.includes("audio/webm")) ||
           formats.find(f => f.mimeType.includes("audio"));
+      console.log(chosen);
       } else {
         chosen =
           formats.find(f => f.mimeType.includes("video/mp4") && f.height <= 1080 && f.mimeType.includes("video/mp4")) ||
           formats.find(f => f.mimeType.includes("video/webm")) ||
           formats.find(f => f.mimeType.includes("video"));
+      console.log(chosen);
       }
-      if (!chosen?.url)
-        return res.status(500).send("No se encontró stream válido");
+      if (!chosen?.url) return res.status(500).send("No se encontró stream válido");
+      console.log(chosen);
 
       const fileExt = extension === "audio"
         ? chosen.mimeType.includes("webm") ? "webm" : "m4a"
