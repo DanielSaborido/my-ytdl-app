@@ -89,23 +89,6 @@ async function start() {
     return res.json();
   }
 
-  function extractVideosFromRenderer(renderer) {
-    if (!renderer) return [];
-    let contents =
-      renderer?.playlistVideoListRenderer?.contents ??
-      renderer?.itemSectionRenderer?.contents ??
-      renderer?.expandedShelfContentsRenderer?.items ??
-      [];
-    return contents
-      .map(item => item.playlistVideoRenderer)
-      .filter(Boolean)
-      .map(v => ({
-        title: v.title?.runs?.[0]?.text || "Sin título",
-        videoId: v.videoId,
-        url: `https://www.youtube.com/watch?v=${v.videoId}`
-      }));
-  }
-
   function extractVideos(json) {
     let results = [];
     let nextToken = null;
@@ -140,6 +123,7 @@ async function start() {
     let results = [];
     let nextToken = null;
     let pageIndex = 1;
+    let title = "";
 
     let json = await fetchInnerTube({
       context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
@@ -147,6 +131,10 @@ async function start() {
     });
     fs.writeFileSync("playlist_dump.json", JSON.stringify(json, null, 2));
     console.log("📁 JSON guardado en playlist_dump.json");
+    const header = json?.header?.playlistHeaderRenderer;
+    if (header?.title?.runs?.[0]?.text) {
+      title = header.title.runs[0].text;
+    }
     let { results: pageVideos, nextToken: cont } = extractVideos(json);
     results.push(...pageVideos);
     nextToken = cont;
@@ -168,7 +156,7 @@ async function start() {
       nextToken = cont2;
       console.log("🔢 Total acumulado:", results.length);
     }
-    return results;
+    return { title, results };
   }
 
   /**************************************
@@ -194,10 +182,10 @@ async function start() {
       const { videoId, playlistId } = extractYouTubeIds(url);
 
       if (playlistId) {
-        const videos = await getFullPlaylist(playlistId);
+        const { title, results: videos } = await getFullPlaylist(playlistId);
         return res.json({
           type: "playlist",
-          title: playlistId,
+          title: title,
           url,
           videos
         });
