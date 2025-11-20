@@ -1,5 +1,5 @@
 <script setup>
-import { url, info, pasteFromClipboard, clear, analyze, download } from "./App.js"
+import { url, info, currentPage, pasteFromClipboard, clear, analyze, paginatedVideos, totalPages, download } from "./App.js"
 </script>
 
 <style src="./App.css"></style>
@@ -31,7 +31,7 @@ import { url, info, pasteFromClipboard, clear, analyze, download } from "./App.j
       </div>
       <div class="playlist-scroll">
         <ul class="playlist-list">
-          <li v-for="video in info.videos" :key="video.url" class="playlist-item" >
+          <li v-for="video in paginatedVideos()" :key="video.url" class="playlist-item" >
             <span class="title">{{ video.title }}</span>
             <div class="buttons">
               <button @click="download('video', video)">🎬</button>
@@ -39,6 +39,11 @@ import { url, info, pasteFromClipboard, clear, analyze, download } from "./App.j
             </div>
           </li>
         </ul>
+      </div>
+      <div class="pagination">
+        <button @click="currentPage--" :disabled="currentPage <= 1">◀ Anterior</button>
+        <button v-for="page in totalPages()" :key="page" @click="currentPage = page" :class="{ active: currentPage === page }">{{ page }}</button>
+        <button @click="currentPage++" :disabled="currentPage >= totalPages()">Siguiente ▶</button>
       </div>
     </div>
   </div>

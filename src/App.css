@@ -156,6 +156,30 @@ button {
   background-color: #1e40af;
 }
 
+.pagination {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.pagination button {
+  padding: 6px 10px;
+  border: 1px solid #444;
+  background: #222;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.pagination button.active {
+  background: #0094ff;
+  font-weight: bold;
+}
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .buttons {
   display: flex;
   flex-wrap: wrap;

@@ -2,6 +2,8 @@ import { ref } from "vue"
 
 export const url = ref("")
 export const info = ref(null)
+export const currentPage = ref(1);
+export const pageSize = 100;
 
 export async function pasteFromClipboard() {
   try {
@@ -15,6 +17,7 @@ export async function pasteFromClipboard() {
 export function clear() {
   url.value = ""
   info.value = null
+  currentPage.value = 1
 }
 
 /*****************************************
@@ -35,6 +38,18 @@ export async function analyze() {
     console.error(err)
     alert("No se pudo analizar el enlace")
   }
+}
+
+export function paginatedVideos() {
+  if (!info.value || !Array.isArray(info.value.videos)) return [];
+  const start = (currentPage.value - 1) * pageSize;
+  const end = start + pageSize;
+  return info.value.videos.slice(start, end);
+}
+
+export function totalPages() {
+  if (!info.value || !Array.isArray(info.value.videos)) return 0;
+  return Math.ceil(info.value.videos.length / pageSize);
 }
 
 /*****************************************
