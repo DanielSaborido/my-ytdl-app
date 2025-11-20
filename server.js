@@ -1,16 +1,61 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
-import { tmpdir } from "os";
-import crypto from "crypto";
-import archiver from "archiver";
+import ytdl from "ytdl-core";
 import { createServer as createViteServer } from "vite";
+import os from "os";
+import https from "https";
+import { spawn } from "child_process";
 
 const isProd = process.env.NODE_ENV === "production";
 const PORT = process.env.PORT || 5173;
+const YTDLP_PATH = path.join(os.homedir(), ".local-bin", "yt-dlp.exe");
 
 async function start() {
   const app = express();
+
+  async function ensureYTDLP() {
+    const binDir = path.join(os.homedir(), ".local-bin");
+    if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
+    const FILE = process.platform === "win32"
+      ? "yt-dlp.exe"
+      : "yt-dlp";
+    const YTDLP_PATH = path.join(binDir, FILE);
+    if (fs.existsSync(YTDLP_PATH)) {
+      console.log("✔️ yt-dlp encontrado:", YTDLP_PATH);
+      return YTDLP_PATH;
+    }
+    console.log("⬇️ Descargando yt-dlp…");
+    const downloadURL = process.platform === "win32"
+      ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+      : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
+    return new Promise((resolve, reject) => {
+      function download(url) {
+        https.get(
+          url,
+          { headers: { "User-Agent": "Mozilla/5.0" } },
+          (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+              console.log("➡️ Redirigiendo a:", res.headers.location);
+              return download(res.headers.location);
+            }
+            if (res.statusCode !== 200) {
+              return reject(`HTTP ${res.statusCode}`);
+            }
+            const fileStream = fs.createWriteStream(YTDLP_PATH);
+            res.pipe(fileStream);
+            fileStream.on("finish", () => {
+              fileStream.close();
+              fs.chmodSync(YTDLP_PATH, 0o755);
+              console.log(`✔️ yt-dlp instalado en ${YTDLP_PATH}`);
+              resolve(YTDLP_PATH);
+            });
+          }
+        ).on("error", reject);
+      }
+      download(downloadURL);
+    });
+  }
 
   /**************************************
    * SAFE FILENAME
@@ -97,7 +142,7 @@ async function start() {
       if (!obj || typeof obj !== "object") return;
       if (obj.playlistVideoRenderer) {
         results.push({
-          videoId: obj.playlistVideoRenderer.videoId,
+          url: `https://www.youtube.com/watch?v=${obj.playlistVideoRenderer.videoId}`,
           title: obj.playlistVideoRenderer.title?.runs?.[0]?.text || "",
           duration: obj.playlistVideoRenderer.lengthText?.runs?.[0]?.text || ""
         });
@@ -212,47 +257,32 @@ async function start() {
   /**************************************
    * API: DESCARGA DIRECTA DE AUDIO/VIDEO
    **************************************/
+  function streamFromYTDLP(url, format, res, title) {
+    const filename = `${safeTitle(title)}.${format === "audio" ? "mp3" : "mp4"}`;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", format === "audio" ? "audio/mpeg" : "video/mp4");
+    const ytdlp = spawn(YTDLP_PATH, [
+      "-f",
+      format === "audio" ? "bestaudio" : "best",
+      "--audio-format",
+      "mp3",
+      "-o",
+      "-",
+      url,
+      "--quiet"
+    ], {
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+    ytdlp.stdout.pipe(res);
+    ytdlp.on("close", () => res.end());
+  }
+
   app.get("/api/download", async (req, res) => {
     try {
       const { url, extension, title } = req.query;
       if (!url) return res.status(400).send("Falta la URL");
-      const { videoId } = extractYouTubeIds(url);
-      if (!videoId) return res.status(400).send("ID de video no encontrado en la URL");
-      const pr = await getPlayerResponse(videoId);
-      if (!pr) return res.status(500).send("No se pudo obtener playerResponse");
-      const formats = pr.streamingData?.adaptiveFormats;
-      if (!formats) return res.status(500).send("No hay streams disponibles");
-      console.log(extension);
-
-      let chosen;
-      if (extension === "audio") {
-        chosen =
-          formats.find(f => f.mimeType.includes("audio/mp4")) ||
-          formats.find(f => f.mimeType.includes("audio/webm")) ||
-          formats.find(f => f.mimeType.includes("audio"));
-      console.log(chosen);
-      } else {
-        chosen =
-          formats.find(f => f.mimeType.includes("video/mp4") && f.height <= 1080 && f.mimeType.includes("video/mp4")) ||
-          formats.find(f => f.mimeType.includes("video/webm")) ||
-          formats.find(f => f.mimeType.includes("video"));
-      console.log(chosen);
-      }
-      if (!chosen?.url) return res.status(500).send("No se encontró stream válido");
-      console.log(chosen);
-
-      const fileExt = extension === "audio"
-        ? chosen.mimeType.includes("webm") ? "webm" : "m4a"
-        : chosen.mimeType.includes("webm") ? "webm" : "mp4";
-      const filename = `${safeTitle(title)}.${fileExt}`;
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.setHeader("Content-Type", chosen.mimeType.split(";")[0]);
-
-      console.log("➡️ Streaming directo:", filename);
-
-      const stream = await fetch(chosen.url);
-      stream.body.pipe(res);
-
+      await ensureYTDLP();
+      streamFromYTDLP(url, extension === "audio" ? "audio" : "video", res, title || "video");
     } catch (err) {
       console.error(err);
       res.status(500).send("Error descargando");
@@ -268,7 +298,6 @@ async function start() {
     const vite = await createViteServer({ server: { middlewareMode: true } });
     app.use(vite.middlewares);
   }
-
   app.listen(PORT, () =>
     console.log(`🚀 Servidor funcionando en http://localhost:${PORT}`)
   );

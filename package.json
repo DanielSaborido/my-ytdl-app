@@ -10,8 +10,15 @@
   },
   "dependencies": {
     "archiver": "^7.0.1",
+    "child_process": "^1.0.2",
     "express": "^4.19.2",
-    "vue": "^3.4.0"
+    "fs": "^0.0.1-security",
+    "https": "^1.0.0",
+    "os": "^0.1.2",
+    "path": "^0.12.7",
+    "vue": "^3.4.0",
+    "youtubei.js": "^16.0.1",
+    "ytdl-core": "^4.11.5"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
