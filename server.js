@@ -166,15 +166,12 @@ async function start() {
   async function getFullPlaylist(playlistId) {
     let results = [];
     let nextToken = null;
-    let pageIndex = 1;
     let title = "";
 
     let json = await fetchInnerTube({
       context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
       browseId: `VL${playlistId}`
     });
-    fs.writeFileSync("playlist_dump.json", JSON.stringify(json, null, 2));
-    console.log("📁 JSON guardado en playlist_dump.json");
     const header = json?.header?.playlistHeaderRenderer;
     if (header?.title?.runs?.[0]?.text) {
       title = header.title.runs[0].text;
@@ -189,12 +186,6 @@ async function start() {
         context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
         continuation: nextToken
       });
-      fs.writeFileSync(
-        `playlist_page_${pageIndex}.json`,
-        JSON.stringify(json, null, 2)
-      );
-      console.log(`📁 Guardada página ${pageIndex}`);
-      pageIndex++;
       const { results: pageResults, nextToken: cont2 } = extractVideos(json);
       results.push(...pageResults);
       nextToken = cont2;
