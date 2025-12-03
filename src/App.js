@@ -103,7 +103,6 @@ export async function download(extension, target) {
       for (const video of target.videos) {
         loadingButton.value = `${extension}-${video.url}`
         await downloadSingle(extension, video)
-        await new Promise(r => setTimeout(r, 1500))
       }
       alert("✅ Descarga de playlist completada")
       return
