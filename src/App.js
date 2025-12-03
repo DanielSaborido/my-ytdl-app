@@ -4,6 +4,7 @@ export const url = ref("")
 export const info = ref(null)
 export const currentPage = ref(1);
 export const pageSize = 100;
+export const loadingButton = ref(null)
 
 export async function pasteFromClipboard() {
   try {
@@ -28,15 +29,15 @@ export async function analyze() {
     alert("Pega un enlace válido de YouTube")
     return
   }
+  loadingButton.value = "analyze"
   try {
     const res = await fetch(`/api/info?url=${encodeURIComponent(url.value)}`)
     if (!res.ok) throw new Error("Error analizando enlace")
-    const data = await res.json()
-    info.value = data
-    console.log("INFO:", data)
+    info.value = await res.json()
   } catch (err) {
-    console.error(err)
     alert("No se pudo analizar el enlace")
+  } finally {
+    loadingButton.value = null
   }
 }
 
@@ -94,22 +95,25 @@ async function downloadSingle(extension, video) {
 export async function download(extension, target) {
   if (!target) return
 
+  const id = `${extension}-${target.url}`
+  loadingButton.value = id
+
   try {
-    // PLAYLIST → recorrer todos los videos
     if (target.type === "playlist" && Array.isArray(target.videos)) {
       for (const video of target.videos) {
+        loadingButton.value = `${extension}-${video.url}`
         await downloadSingle(extension, video)
-        await new Promise(r => setTimeout(r, 1500))  // pausa pequeña
+        await new Promise(r => setTimeout(r, 1500))
       }
       alert("✅ Descarga de playlist completada")
       return
     }
-
-    // VIDEO INDIVIDUAL
     await downloadSingle(extension, target)
 
   } catch (err) {
     console.error(err)
     alert("❌ No se pudo descargar este video")
+  } finally {
+    loadingButton.value = null
   }
 }
