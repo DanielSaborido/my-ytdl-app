@@ -1,7 +1,6 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
-import ytdl from "ytdl-core";
 import { createServer as createViteServer } from "vite";
 import os from "os";
 import https from "https";
