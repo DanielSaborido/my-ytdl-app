@@ -217,3 +217,50 @@ button:disabled {
     align-items: center;
   }
 }
+
+@media (prefers-color-scheme: dark) {
+  body, .container {
+    background-color: #121212;
+    color: #e5e5e5;
+  }
+
+  .input-group {
+    border-color: #444;
+    background-color: #1f1f1f;
+  }
+
+  .input-group input {
+    background-color: #1f1f1f;
+    color: #e5e5e5;
+  }
+
+  .paste-btn {
+    background-color: #333;
+    color: #e5e5e5;
+  }
+  .paste-btn:hover {
+    background-color: #444;
+  }
+
+  .action-buttons button,
+  .buttons button,
+  .playlist-item button,
+  .download-all,
+  .pagination button {
+    filter: brightness(0.9);
+  }
+
+  .info, .playlist {
+    border-color: #444;
+    background-color: #1e1e1e;
+  }
+
+  .playlist-scroll {
+    border-color: #333;
+  }
+
+  .pagination button {
+    background: #333;
+    border-color: #555;
+  }
+}
