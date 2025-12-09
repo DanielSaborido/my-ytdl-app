@@ -311,21 +311,45 @@ button:disabled {
     padding: 0.8rem;
     border-radius: 8px;
   }
-  .playlist-item {
+  .playlist-scroll {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  .playlist-list {
+    display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-    padding: 0.5rem;
+    gap: 0.4rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .playlist-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.35rem 0.5rem;
+    min-width: 0;
   }
   .playlist-item .title {
-    font-size: 0.9rem;
-    margin-right: 0;
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-right: 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .playlist-item .buttons {
+    display: flex;
+    gap: 0.3rem;
+    flex-shrink: 0;
   }
   .playlist-item button {
-    width: 100%;
-    font-size: 0.85rem;
-    padding: 0.55rem;
+    flex: none;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    min-width: 40px;
   }
   .playlist-scroll {
     max-height: 320px;
