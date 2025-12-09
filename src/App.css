@@ -208,6 +208,9 @@ button:disabled {
   to { transform: rotate(360deg); }
 }
 
+/* ----------------------------------------------------------
+   Preferencias visuales
+---------------------------------------------------------- */
 @media (min-width: 600px) {
   .playlist-list {
     grid-template-columns: 1fr 1fr;
@@ -223,17 +226,14 @@ button:disabled {
     background-color: #121212;
     color: #e5e5e5;
   }
-
   .input-group {
     border-color: #444;
     background-color: #1f1f1f;
   }
-
   .input-group input {
     background-color: #1f1f1f;
     color: #e5e5e5;
   }
-
   .paste-btn {
     background-color: #333;
     color: #e5e5e5;
@@ -241,7 +241,6 @@ button:disabled {
   .paste-btn:hover {
     background-color: #444;
   }
-
   .action-buttons button,
   .buttons button,
   .playlist-item button,
@@ -249,18 +248,120 @@ button:disabled {
   .pagination button {
     filter: brightness(0.9);
   }
-
   .info, .playlist {
     border-color: #444;
     background-color: #1e1e1e;
   }
-
   .playlist-scroll {
     border-color: #333;
   }
-
   .pagination button {
     background: #333;
     border-color: #555;
+  }
+}
+
+/* ----------------------------------------------------------
+   📱  RESPONSIVE GENERAL (pantallas de menos de 600px)
+---------------------------------------------------------- */
+@media (max-width: 600px) {
+  h1 {
+    font-size: 1.6rem;
+  }
+  .container {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .input-group {
+    max-width: 100%;
+    border-radius: 8px;
+  }
+  .input-group input {
+    font-size: 0.9rem;
+    padding: 0.65rem;
+  }
+  .paste-btn {
+    padding: 0.65rem 0.8rem;
+    font-size: 1rem;
+  }
+  .action-buttons {
+    max-width: 100%;
+    gap: 0.5rem;
+  }
+  .action-buttons button {
+    min-width: 100px;
+    flex: 1 1 48%;
+    font-size: 0.9rem;
+    padding: 0.65rem 0.8rem;
+  }
+  .info {
+    padding: 0.8rem;
+    border-radius: 8px;
+  }
+  .info img {
+    max-height: 200px;
+  }
+  .buttons button {
+    flex: 1 1 48%;
+    font-size: 0.85rem;
+    padding: 0.6rem;
+  }
+  .playlist-box,
+  .playlist {
+    padding: 0.8rem;
+    border-radius: 8px;
+  }
+  .playlist-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 0.5rem;
+  }
+  .playlist-item .title {
+    font-size: 0.9rem;
+    margin-right: 0;
+    width: 100%;
+  }
+  .playlist-item button {
+    width: 100%;
+    font-size: 0.85rem;
+    padding: 0.55rem;
+  }
+  .playlist-scroll {
+    max-height: 320px;
+  }
+  .pagination button {
+    padding: 5px 8px;
+    font-size: 0.8rem;
+  }
+}
+
+/* ----------------------------------------------------------
+   📱  EXTRA: RESPONSIVE para pantallas MUY pequeñas (<400px)
+---------------------------------------------------------- */
+@media (max-width: 400px) {
+  h1 {
+    font-size: 1.4rem;
+  }
+  .action-buttons button {
+    font-size: 0.8rem;
+    padding: 0.55rem;
+  }
+  .buttons button {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+  }
+  .playlist-item {
+    padding: 0.4rem;
+  }
+  .playlist-item button {
+    font-size: 0.75rem;
+  }
+  .pagination button {
+    padding: 4px 6px;
+    font-size: 0.75rem;
+  }
+  .input-group input {
+    font-size: 0.85rem;
   }
 }
