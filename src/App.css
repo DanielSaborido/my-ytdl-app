@@ -310,6 +310,7 @@ button:disabled {
   .playlist {
     padding: 0.8rem;
     border-radius: 8px;
+    max-width: 100%;
   }
   .playlist-scroll {
     max-width: 100%;
