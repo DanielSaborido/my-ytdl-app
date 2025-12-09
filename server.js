@@ -21,10 +21,8 @@ async function start() {
       : "yt-dlp";
     const YTDLP_PATH = path.join(binDir, FILE);
     if (fs.existsSync(YTDLP_PATH)) {
-      console.log("✔️ yt-dlp encontrado:", YTDLP_PATH);
       return YTDLP_PATH;
     }
-    console.log("⬇️ Descargando yt-dlp…");
     const downloadURL = process.platform === "win32"
       ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
       : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
@@ -35,7 +33,6 @@ async function start() {
           { headers: { "User-Agent": "Mozilla/5.0" } },
           (res) => {
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-              console.log("➡️ Redirigiendo a:", res.headers.location);
               return download(res.headers.location);
             }
             if (res.statusCode !== 200) {
@@ -46,7 +43,6 @@ async function start() {
             fileStream.on("finish", () => {
               fileStream.close();
               fs.chmodSync(YTDLP_PATH, 0o755);
-              console.log(`✔️ yt-dlp instalado en ${YTDLP_PATH}`);
               resolve(YTDLP_PATH);
             });
           }
@@ -179,7 +175,6 @@ async function start() {
     let { results: pageVideos, nextToken: cont } = extractVideos(json);
     results.push(...pageVideos);
     nextToken = cont;
-    console.log("Página inicial:", results.length, "videos");
 
     while (nextToken) {
       json = await fetchInnerTube({
@@ -189,7 +184,6 @@ async function start() {
       const { results: pageResults, nextToken: cont2 } = extractVideos(json);
       results.push(...pageResults);
       nextToken = cont2;
-      console.log("🔢 Total acumulado:", results.length);
     }
     return { title, results };
   }
@@ -270,6 +264,7 @@ async function start() {
   app.get("/api/download", async (req, res) => {
     try {
       const { url, extension, title } = req.query;
+      console.log("Descargando ", title, " como ", extension);
       if (!url) return res.status(400).send("Falta la URL");
       await ensureYTDLP();
       streamFromYTDLP(url, extension === "audio" ? "audio" : "video", res, title || "video");
