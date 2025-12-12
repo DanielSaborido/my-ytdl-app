@@ -29,11 +29,9 @@ const COOKIE_JSON_STRING = loadJsonCookies();
 // ===============================================================
 async function ensureYTDLP() {
   if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
-
   const FILE = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
   const target = path.join(BIN_DIR, FILE);
 
-  // 👉 Siempre actualizar a la última versión (evita fallos con YouTube)
   if (fs.existsSync(target)) {
     try {
       await new Promise(res => {
@@ -45,7 +43,6 @@ async function ensureYTDLP() {
       console.log("Error actualizando yt-dlp, re-descargando…");
     }
   }
-
   const downloadURL =
     process.platform === "win32"
       ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
@@ -85,18 +82,16 @@ function extractYouTubeIds(raw) {
   if (!raw) return { videoId: null, playlistId: null };
   let s = raw.toString().trim();
   if (!/^https?:\/\//i.test(s)) s = "https://" + s;
-
   let url;
+
   try {
     url = new URL(s);
   } catch {
     return { videoId: null, playlistId: null };
   }
-
   const host = url.hostname.replace(/^www\./, "").toLowerCase();
   let videoId = null;
   let playlistId = null;
-
   if (url.searchParams.has("v")) videoId = url.searchParams.get("v");
   if (url.searchParams.has("list")) playlistId = url.searchParams.get("list");
 
@@ -135,7 +130,6 @@ async function getPlayerResponse(videoId) {
       "Cookie": COOKIE_JSON_STRING
     }
   }).then(r => r.text());
-
   const jsonMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});/s);
   return jsonMatch ? JSON.parse(jsonMatch[1]) : null;
 }
@@ -147,19 +141,16 @@ async function getFullPlaylist(playlistId) {
   let results = [];
   let nextToken = null;
   let title = "";
-
   let json = await fetchInnerTube({
     context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
     browseId: `VL${playlistId}`
   });
-
   const header = json?.header?.playlistHeaderRenderer;
-  if (header?.title?.runs?.[0]?.text) title = header.title.runs[0].text;
 
+  if (header?.title?.runs?.[0]?.text) title = header.title.runs[0].text;
   function extractVideos(obj) {
     let out = [];
     let cont = null;
-
     function dig(o) {
       if (!o || typeof o !== "object") return;
       if (o.playlistVideoRenderer) {
@@ -172,17 +163,14 @@ async function getFullPlaylist(playlistId) {
       const c1 = o.playlistVideoListRenderer?.continuations;
       const c2 = o.playlistVideoListContinuation?.continuations;
       const continuations = c1 || c2;
-
       if (Array.isArray(continuations)) {
         for (const c of continuations) {
           const d = c.nextContinuationData;
           if (d?.continuation) cont = d.continuation;
         }
       }
-
       for (const k in o) dig(o[k]);
     }
-
     dig(obj);
     return { out, cont };
   }
@@ -190,18 +178,15 @@ async function getFullPlaylist(playlistId) {
   let page1 = extractVideos(json);
   results.push(...page1.out);
   nextToken = page1.cont;
-
   while (nextToken) {
     json = await fetchInnerTube({
       context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
       continuation: nextToken
     });
-
     let p = extractVideos(json);
     results.push(...p.out);
     nextToken = p.cont;
   }
-
   return { title, results };
 }
 
@@ -214,19 +199,14 @@ app.get("/api/info", async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) return res.status(400).send("Falta URL");
-
     const { videoId, playlistId } = extractYouTubeIds(url);
-
     if (playlistId) {
       const { title, results } = await getFullPlaylist(playlistId);
       return res.json({ type: "playlist", title, url, videos: results });
     }
-
     if (!videoId) return res.status(400).send("ID inválido");
-
     const pr = await getPlayerResponse(videoId);
     if (!pr) return res.status(500).send("No se pudo obtener info");
-
     return res.json({
       type: "video",
       title: pr.videoDetails?.title || "Sin título",
@@ -249,15 +229,12 @@ function streamFromYTDLP(url, format, res, title) {
   res.setHeader("Content-Type", isAudio ? "audio/mpeg" : "video/mp4");
 
   const args = [
-    "--cookies", "./cookies_net.txt",
-    "--extractor-args", "youtube:player-client=web_embed",
     "-o", "-",
     url,
     "--quiet"
   ];
-
   if (isAudio) {
-    args.unshift("--extract-audio", "--audio-format", "mp3");
+    args.unshift("-f", "bestaudio");
   } else {
     args.unshift("-f", "bestvideo+bestaudio/best");
   }
@@ -265,13 +242,10 @@ function streamFromYTDLP(url, format, res, title) {
   const ytdlp = spawn(YTDLP_PATH, args, {
     stdio: ["ignore", "pipe", "pipe"]
   });
-
   ytdlp.stderr.on("data", d =>
     console.error("yt-dlp:", d.toString())
   );
-
   ytdlp.stdout.pipe(res);
-
   ytdlp.on("close", code => {
     if (code !== 0) console.error("yt-dlp exited with", code);
     res.end();
@@ -284,13 +258,9 @@ function streamFromYTDLP(url, format, res, title) {
 app.get("/api/download", async (req, res) => {
   try {
     const { url, extension, title } = req.query;
-
     console.log("Descargando:", title, "como", extension);
-
     if (!url) return res.status(400).send("Falta URL");
-
     await ensureYTDLP();
-
     streamFromYTDLP(url, extension === "audio" ? "audio" : "video", res, title || "video");
   } catch (err) {
     console.error(err);
