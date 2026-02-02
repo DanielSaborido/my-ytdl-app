@@ -6,9 +6,11 @@ import os from "os";
 import https from "https";
 import { spawn } from "child_process";
 import ffmpegPath from "ffmpeg-static";
+import open from "open";
 
 const isProd = process.env.NODE_ENV === "production";
 const PORT = process.env.PORT || 5173;
+const url = `http://localhost:${PORT}`;
 const BIN_DIR = path.join(os.homedir(), ".local-bin");
 const YTDLP_FILE = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
 const YTDLP_PATH = path.join(BIN_DIR, YTDLP_FILE);
@@ -84,7 +86,6 @@ function extractYouTubeIds(raw) {
   let s = raw.toString().trim();
   if (!/^https?:\/\//i.test(s)) s = "https://" + s;
   let url;
-
   try {
     url = new URL(s);
   } catch {
@@ -93,8 +94,22 @@ function extractYouTubeIds(raw) {
   const host = url.hostname.replace(/^www\./, "").toLowerCase();
   let videoId = null;
   let playlistId = null;
-  if (url.searchParams.has("v")) videoId = url.searchParams.get("v");
-  if (url.searchParams.has("list")) playlistId = url.searchParams.get("list");
+
+  if (url.searchParams.has("list")) {
+    playlistId = url.searchParams.get("list");
+  }
+  if (url.searchParams.has("v")) {
+    videoId = url.searchParams.get("v");
+  }
+  if (!videoId && host === "youtu.be") {
+    videoId = url.pathname.slice(1);
+  }
+  if (!videoId && url.pathname.startsWith("/shorts/")) {
+    videoId = url.pathname.split("/")[2];
+  }
+  if (!videoId && host === "music.youtube.com") {
+    videoId = url.searchParams.get("v");
+  }
 
   return { videoId, playlistId };
 }
@@ -111,10 +126,20 @@ async function fetchInnerTube(body) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0",
-        "Cookie": COOKIE_JSON_STRING
+        "User-Agent": "com.google.android.youtube/19.08.35"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        ...body,
+        context: {
+          client: {
+            clientName: "ANDROID",
+            clientVersion: "19.08.35",
+            androidSdkVersion: 30,
+            hl: "es",
+            gl: "US"
+          }
+        }
+      })
     }
   );
   return res.json();
@@ -131,8 +156,30 @@ async function getPlayerResponse(videoId) {
       "Cookie": COOKIE_JSON_STRING
     }
   }).then(r => r.text());
-  const jsonMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});/s);
-  return jsonMatch ? JSON.parse(jsonMatch[1]) : null;
+  const marker = "ytInitialPlayerResponse =";
+  const idx = html.indexOf(marker);
+  if (idx === -1) return null;
+  let jsonText = html.slice(idx + marker.length);
+  let depth = 0;
+  let end = 0;
+  for (let i = 0; i < jsonText.length; i++) {
+    if (jsonText[i] === "{") depth++;
+    if (jsonText[i] === "}") {
+      depth--;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  if (!end) return null;
+  jsonText = jsonText.slice(0, end);
+  try {
+    return JSON.parse(jsonText);
+  } catch (e) {
+    console.error("JSON parse failed:", e.message);
+    return null;
+  }
 }
 
 // ===============================================================
@@ -144,7 +191,7 @@ async function getFullPlaylist(playlistId) {
   let title = "";
   let json = await fetchInnerTube({
     context: { client: { clientName: "ANDROID", clientVersion: "19.08.35" } },
-    browseId: `VL${playlistId}`
+    browseId: playlistId.startsWith("VL") ? playlistId : `VL${playlistId}`
   });
   const header = json?.header?.playlistHeaderRenderer;
 
@@ -167,7 +214,7 @@ async function getFullPlaylist(playlistId) {
       if (Array.isArray(continuations)) {
         for (const c of continuations) {
           const d = c.nextContinuationData;
-          if (d?.continuation) cont = d.continuation;
+          if (d?.continuation && !cont) cont = d.continuation;
         }
       }
       for (const k in o) dig(o[k]);
@@ -276,5 +323,9 @@ if (isProd) {
 }
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor listo: http://localhost:${PORT}`);
+  console.log(`🚀 Servidor listo: ${url}`);
+  if (!process.env.BROWSER_OPENED) {
+    process.env.BROWSER_OPENED = "true";
+    open(url);
+  }
 });
