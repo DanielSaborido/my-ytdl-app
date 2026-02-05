@@ -66,27 +66,11 @@ function getFilenameFromDisposition(header, fallback) {
  * 📌 DESCARGA INDIVIDUAL
  *****************************************/
 async function downloadSingle(extension, video) {
-  const apiUrl = `/api/download?url=${encodeURIComponent(video.url)}&extension=${extension}&title=${encodeURIComponent(video.title)}`
-
-  console.log("⬇️ Descargando:", video.title)
-
-  const res = await fetch(apiUrl)
-  if (!res.ok) throw new Error(`Error descargando ${video.title}`)
-
-  const blob = await res.blob()
-  const url = window.URL.createObjectURL(blob)
-
-  const contentDisp = res.headers.get("Content-Disposition")
-  const ext = extension === "audio" ? "m4a" : "mp4"
-  const filename = getFilenameFromDisposition(contentDisp, `${video.title}.${ext}`)
-
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.URL.revokeObjectURL(url)
+  const apiUrl =
+    `/api/download?url=${encodeURIComponent(video.url)}` +
+    `&extension=${extension}` +
+    `&title=${encodeURIComponent(video.title)}`
+  window.location.href = apiUrl
 }
 
 /*****************************************
