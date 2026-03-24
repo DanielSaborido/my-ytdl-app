@@ -54,8 +54,12 @@ async function ensureYTDLP() {
 // ===============================================================
 function safeTitle(title) {
   return (title || "file")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "_")
-    .slice(0, 80);
+    .replace(/[^a-zA-Z0-9\s-_]/g, "")
+    .replace(/\s+/g, "_")
+    .slice(0, 60);
 }
 
 function normalizeVideoUrl(v) {
@@ -98,7 +102,7 @@ function streamFromYTDLP(targetUrl, format, res, title) {
     ? ["-f", "bestaudio", "--extract-audio", "--audio-format", "mp3"]
     : ["-f", "mp4"];
 
-  args.push("-o", "-", targetUrl);
+  args.push("--js-runtimes", "node", "-o", "-", targetUrl);
 
   const ytdlp = spawn(YTDLP_PATH, args);
   ytdlp.stdout.pipe(res);
@@ -122,17 +126,47 @@ async function processPlaylist(jobId, extension) {
       const filename = safeTitle(video.title) + "." + ext;
       const filepath = path.join(DOWNLOAD_DIR, filename);
 
-      const args = extension === "audio"
-        ? ["-f", "bestaudio", "--extract-audio", "--audio-format", "mp3"]
-        : ["-f", "mp4"];
+      const args = [];
 
-      args.push("-o", filepath, video.url);
+      if (extension === "audio") {
+        args.push(
+          "-f", "bestaudio",
+          "--extract-audio",
+          "--audio-format", "mp3",
+          "--ffmpeg-location", ffmpegPath
+        );
+      } else {
+        args.push(
+          "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]",
+          "--merge-output-format", "mp4",
+          "--ffmpeg-location", ffmpegPath
+        );
+      }
+
+      args.push("--js-runtimes", "node", "-o", filepath, video.url);
 
       const p = spawn(YTDLP_PATH, args);
 
-      p.on("close", () => {
-        video.status = "done";
-        video.file = filename;
+      p.stderr.on("data", d => {
+        console.log("YT-DLP:", d.toString());
+      });
+
+      p.on("close", async () => {
+        let attempts = 0;
+
+        while (!fs.existsSync(filepath) && attempts < 10) {
+          await new Promise(r => setTimeout(r, 500));
+          attempts++;
+        }
+
+        if (fs.existsSync(filepath)) {
+          video.status = "done";
+          video.file = filename;
+        } else {
+          console.error("❌ Archivo no generado:", filepath);
+          video.status = "error";
+        }
+
         resolve();
       });
 
@@ -216,8 +250,14 @@ app.get("/api/playlist/status", (req, res) => {
 
 // FILE DOWNLOAD
 app.get("/api/file", (req, res) => {
-  const file = path.join(DOWNLOAD_DIR, req.query.file);
-  res.download(file);
+  const filepath = path.join(DOWNLOAD_DIR, req.query.file);
+
+  if (!fs.existsSync(filepath)) {
+    console.error("❌ Intento de descarga de archivo inexistente:", filepath);
+    return res.status(404).send("Archivo no disponible aún");
+  }
+
+  res.download(filepath);
 });
 
 // ===============================================================
