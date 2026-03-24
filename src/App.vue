@@ -49,8 +49,16 @@ import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analy
       </div>
       <div class="playlist-scroll">
         <ul class="playlist-list">
-          <li v-for="video in paginatedVideos()" :key="video.url" class="playlist-item" >
-            <span class="title">{{ video.title }}</span>
+          <li v-for="video in paginatedVideos()" :key="video.url" class="playlist-item">
+            <div class="title-progress">
+              <span class="title">{{ video.title }}</span>
+              <div class="progress-bar" v-if="video.status === 'downloading'">
+                <div 
+                  class="progress-fill" 
+                  :style="{ width: (video.progress || 0) + '%' }"
+                ></div>
+              </div>
+            </div>
             <div class="buttons">
               <button 
                 @click="download('video', video)" 

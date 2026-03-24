@@ -121,6 +121,7 @@ async function processPlaylist(jobId, extension) {
   async function worker(video) {
     return new Promise(resolve => {
       video.status = "downloading";
+      video.progress = 0;
 
       const ext = extension === "audio" ? "mp3" : "mp4";
       const filename = safeTitle(video.title) + "." + ext;
@@ -147,8 +148,12 @@ async function processPlaylist(jobId, extension) {
 
       const p = spawn(YTDLP_PATH, args);
 
-      p.stderr.on("data", d => {
-        console.log("YT-DLP:", d.toString());
+      p.stdout.on("data", d => {
+        const out = d.toString();
+        const match = out.match(/(\d{1,3}\.\d)%/);
+        if (match) {
+          video.progress = parseFloat(match[1]);
+        }
       });
 
       p.on("close", async () => {
@@ -162,9 +167,11 @@ async function processPlaylist(jobId, extension) {
         if (fs.existsSync(filepath)) {
           video.status = "done";
           video.file = filename;
+          video.progress = 100;
         } else {
           console.error("❌ Archivo no generado:", filepath);
           video.status = "error";
+          video.progress = 0;
         }
 
         resolve();
@@ -257,7 +264,14 @@ app.get("/api/file", (req, res) => {
     return res.status(404).send("Archivo no disponible aún");
   }
 
-  res.download(filepath);
+  res.download(filepath, req.query.file, err => {
+    if (!err) {
+      fs.unlink(filepath, e => {
+        if (e) console.error("Error borrando:", filepath);
+        else console.log("🧹 Eliminado:", filepath);
+      });
+    }
+  });
 });
 
 // ===============================================================

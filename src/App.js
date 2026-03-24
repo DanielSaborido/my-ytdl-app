@@ -75,42 +75,47 @@ async function downloadSingle(extension, video) {
 // PLAYLIST DOWNLOAD 🔥
 // ============================
 async function downloadPlaylist(extension, videos) {
-  const res = await fetch("/api/playlist/start?videos=" +
-    encodeURIComponent(JSON.stringify(videos)) +
-    "&extension=" + extension
-  )
+  const res = await fetch(
+    "/api/playlist/start?videos=" +
+      encodeURIComponent(JSON.stringify(videos)) +
+      "&extension=" +
+      extension
+  );
+  const { jobId } = await res.json();
 
-  const { jobId } = await res.json()
-
-  let finished = false
-
-  const downloadedSet = new Set()
+  const downloadedSet = new Set();
+  let finished = false;
 
   while (!finished) {
-    const statusRes = await fetch(`/api/playlist/status?jobId=${jobId}`)
-    const data = await statusRes.json()
+    const statusRes = await fetch(`/api/playlist/status?jobId=${jobId}`);
+    const data = await statusRes.json();
 
-    finished = true
+    data.videos.forEach((serverVideo, i) => {
+      const localVideo = info.value.videos.find(v => v.url === serverVideo.url);
+      if (localVideo) {
+        localVideo.status = serverVideo.status;
+        localVideo.progress = serverVideo.progress || 0;
+        localVideo.file = serverVideo.file;
+      }
+    });
 
-    for (const video of data.videos) {
+    data.videos.forEach(video => {
       if (video.status === "done" && !downloadedSet.has(video.file)) {
-        downloadedSet.add(video.file)
+        downloadedSet.add(video.file);
 
-        const link = document.createElement("a")
-        link.href = `/api/file?file=${video.file}`
-        link.download = video.file
-        link.click()
+        const link = document.createElement("a");
+        link.href = `/api/file?file=${video.file}`;
+        link.download = video.file;
+        link.click();
       }
+    });
 
-      if (video.status !== "done") {
-        finished = false
-      }
-    }
+    finished = data.videos.every(v => v.status === "done" || v.status === "error");
 
-    await new Promise(r => setTimeout(r, 1000))
+    await new Promise(r => setTimeout(r, 500));
   }
 
-  alert("✅ Playlist descargada")
+  alert("✅ Playlist descargada");
 }
 
 // ============================
