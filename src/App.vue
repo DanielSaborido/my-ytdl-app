@@ -1,25 +1,25 @@
 <script setup>
-import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analyze, paginatedVideos, totalPages, download } from "./App.js"
+import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analyze, paginatedVideos, totalPages, download, t } from "./App.js"
 </script>
 
 <style src="./App.css"></style>
 
 <template>
   <div class="container">
-    <h1>YouTube Downloader</h1>
+    <h1>{{ t.title }}</h1>
     <div class="input-group">
-      <input v-model="url" type="text" placeholder="Paste here the YouTube url" />
-      <button class="paste-btn" @click="pasteFromClipboard" title="Paste from Clipboard">📋</button>
+      <input v-model="url" type="text" :placeholder="t.placeholder" />
+      <button class="paste-btn" @click="pasteFromClipboard" :title="t.paste">📋</button>
     </div>
     <div class="action-buttons">
       <button 
         @click="analyze"
         :disabled="loadingButton === 'analyze'"
       >
-        <span v-if="loadingButton !== 'analyze'">Analyze</span>
+        <span v-if="loadingButton !== 'analyze'">{{ t.analyze }}</span>
         <span v-else class="loader"></span>
       </button>
-      <button @click="clear">Clear</button>
+      <button @click="clear">{{ t.clear }}</button>
     </div>
     <div v-if="info && info.type === 'video'" class="info">
       <img :src="info.thumbnail" alt="Miniatura" />
@@ -29,23 +29,23 @@ import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analy
           @click="download('video', info)" 
           :disabled="loadingButton === `video-${info.url}`"
         >
-          <span v-if="loadingButton !== `video-${info.url}`">Download Video</span>
+          <span v-if="loadingButton !== `video-${info.url}`">{{ t.downloadVideo }}</span>
           <span v-else class="loader"></span>
         </button>
         <button 
           @click="download('audio', info)" 
           :disabled="loadingButton === `audio-${info.url}`"
         >
-          <span v-if="loadingButton !== `audio-${info.url}`">Download Audio</span>
+          <span v-if="loadingButton !== `audio-${info.url}`">{{ t.downloadAudio }}</span>
           <span v-else class="loader"></span>
         </button>
       </div>
     </div>
     <div v-if="info && info.type === 'playlist'" class="playlist-box">
-      <h2>Playlist: {{ info.title }}</h2>
+      <h2>{{ t.playlist }}: {{ info.title }}</h2>
       <div class="buttons">
-        <button @click="download('video', info)">⬇️ Download Playlist Video</button>
-        <button @click="download('audio', info)">⬇️ Download Playlist Audio</button>
+        <button @click="download('video', info)">{{ t.downloadPlaylistVideo }}</button>
+        <button @click="download('audio', info)">{{ t.downloadPlaylistAudio }}</button>
       </div>
       <div class="playlist-scroll">
         <ul class="playlist-list">
@@ -79,9 +79,9 @@ import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analy
         </ul>
       </div>
       <div class="pagination">
-        <button @click="currentPage--" :disabled="currentPage <= 1">◀ Previous</button>
+        <button @click="currentPage--" :disabled="currentPage <= 1">{{ t.previous }}</button>
         <button v-for="page in totalPages()" :key="page" @click="currentPage = page" :class="{ active: currentPage === page }">{{ page }}</button>
-        <button @click="currentPage++" :disabled="currentPage >= totalPages()">Next ▶</button>
+        <button @click="currentPage++" :disabled="currentPage >= totalPages()">{{ t.next }}</button>
       </div>
     </div>
   </div>

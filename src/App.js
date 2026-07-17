@@ -1,10 +1,50 @@
 import { ref } from "vue"
+import { computed } from "vue";
 
 export const url = ref("")
 export const info = ref(null)
 export const currentPage = ref(1)
 export const pageSize = 100
 export const loadingButton = ref(null)
+
+// ============================
+// LANGUAGE
+// ============================
+const lang = navigator.language.toLowerCase().startsWith("es") ? "es" : "en";
+
+const translations = {
+  en: {
+    title: "YouTube Downloader",
+    placeholder: "Paste here the YouTube URL",
+    paste: "Paste from Clipboard",
+    analyze: "Analyze",
+    clear: "Clear",
+    downloadVideo: "Download Video",
+    downloadAudio: "Download Audio",
+    playlist: "Playlist",
+    downloadPlaylistVideo: "⬇️ Download Playlist Video",
+    downloadPlaylistAudio: "⬇️ Download Playlist Audio",
+    previous: "◀ Previous",
+    next: "Next ▶",
+  },
+
+  es: {
+    title: "Descargador de YouTube",
+    placeholder: "Pega aquí la URL de YouTube",
+    paste: "Pegar del Portapapeles",
+    analyze: "Analizar",
+    clear: "Limpiar",
+    downloadVideo: "Descargar vídeo",
+    downloadAudio: "Descargar audio",
+    playlist: "Lista de reproducción",
+    downloadPlaylistVideo: "⬇️ Descargar lista (vídeo)",
+    downloadPlaylistAudio: "⬇️ Descargar lista (audio)",
+    previous: "◀ Anterior",
+    next: "Siguiente ▶",
+  }
+};
+
+export const t = computed(() => translations[lang]);
 
 // ============================
 // CLIPBOARD

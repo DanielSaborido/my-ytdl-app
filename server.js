@@ -24,29 +24,61 @@ if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true }
 let playlistJobs = {};
 
 // ===============================================================
+// YT-DLP AUTO UPDATE
+// ===============================================================
+async function updateYTDLP() {
+  if (!fs.existsSync(YTDLP_PATH)) return;
+
+  return new Promise(resolve => {
+    console.log("Checking for yt-dlp updates...");
+
+    const updater = spawn(YTDLP_PATH, ["-U"], {
+      stdio: "inherit"
+    });
+
+    updater.on("close", () => resolve());
+    updater.on("error", err => {
+      console.warn("Could not update yt-dlp:", err.message);
+      resolve();
+    });
+  });
+}
+
+// ===============================================================
 // YT-DLP SETUP
 // ===============================================================
 async function ensureYTDLP() {
-  if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
+  if (!fs.existsSync(BIN_DIR))
+    fs.mkdirSync(BIN_DIR, { recursive: true });
 
-  if (fs.existsSync(YTDLP_PATH)) return YTDLP_PATH;
+  if (!fs.existsSync(YTDLP_PATH)) {
+    const downloadURL =
+      process.platform === "win32"
+        ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+        : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
 
-  const downloadURL =
-    process.platform === "win32"
-      ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-      : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
+    await new Promise((resolve, reject) => {
+      https.get(downloadURL, resp => {
+        const file = fs.createWriteStream(YTDLP_PATH);
 
-  return new Promise((resolve, reject) => {
-    https.get(downloadURL, resp => {
-      const file = fs.createWriteStream(YTDLP_PATH);
-      resp.pipe(file);
-      file.on("finish", () => {
-        file.close();
-        try { fs.chmodSync(YTDLP_PATH, 0o755); } catch {}
-        resolve(YTDLP_PATH);
-      });
-    }).on("error", reject);
-  });
+        resp.pipe(file);
+
+        file.on("finish", () => {
+          file.close();
+          try {
+            fs.chmodSync(YTDLP_PATH, 0o755);
+          } catch {}
+
+          resolve();
+        });
+
+      }).on("error", reject);
+    });
+  } else {
+    await updateYTDLP();
+  }
+
+  return YTDLP_PATH;
 }
 
 // ===============================================================
@@ -56,9 +88,9 @@ function safeTitle(title) {
   return (title || "file")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "_")
+    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, " ")
     .replace(/[^a-zA-Z0-9\s-_]/g, "")
-    .replace(/\s+/g, "_")
+    .replace(/\s+/g, " ")
     .slice(0, 60);
 }
 
@@ -74,17 +106,55 @@ function normalizeVideoUrl(v) {
 // ===============================================================
 function analyzeWithYTDLP(targetUrl) {
   return new Promise((resolve, reject) => {
-    const ytdlp = spawn(YTDLP_PATH, [
+
+    const args = [
       "-J",
       "--flat-playlist",
       "--skip-download",
+
+      "--no-warnings",
+
+      "--extractor-args",
+      "youtube:player_client=android",
+
+      "--cookies-from-browser",
+      "chrome",
+
       targetUrl
-    ]);
+    ];
+
+    const ytdlp = spawn(YTDLP_PATH, args);
 
     let out = "";
+    let err = "";
+
     ytdlp.stdout.on("data", d => out += d.toString());
-    ytdlp.on("close", () => resolve(JSON.parse(out)));
+    ytdlp.stderr.on("data", d => err += d.toString());
+
+    ytdlp.on("close", () => {
+
+      if (!out.trim()) {
+        console.error("YT-DLP ANALYZE ERROR:");
+        console.error(err);
+
+        return reject(
+          new Error(err || "yt-dlp analyze failed")
+        );
+      }
+
+      try {
+        resolve(JSON.parse(out));
+      } catch (e) {
+        console.error("JSON PARSE ERROR");
+        console.error(out);
+
+        reject(e);
+      }
+
+    });
+
     ytdlp.on("error", reject);
+
   });
 }
 
@@ -111,7 +181,7 @@ function streamFromYTDLP(targetUrl, format, res, title) {
 // ===============================================================
 // PLAYLIST PROCESSOR
 // ===============================================================
-const MAX_CONCURRENT = 4;
+const MAX_CONCURRENT = 5;
 
 async function processPlaylist(jobId, extension) {
   const job = playlistJobs[jobId];
@@ -144,12 +214,13 @@ async function processPlaylist(jobId, extension) {
         );
       }
 
-      args.push("--js-runtimes", "node", "-o", filepath, video.url);
+      args.push("--retries", "3", "--fragment-retries", "3","--js-runtimes", "node", "-o", filepath, video.url);
 
       const p = spawn(YTDLP_PATH, args);
 
-      p.stdout.on("data", d => {
+      p.stderr.on("data", d => {
         const out = d.toString();
+        console.log("YT-DLP:", out);
         const match = out.match(/(\d{1,3}\.\d)%/);
         if (match) {
           video.progress = parseFloat(match[1]);
@@ -203,7 +274,7 @@ async function processPlaylist(jobId, extension) {
 const app = express();
 
 app.get("/api/info", async (req, res) => {
-  await ensureYTDLP();
+  // await ensureYTDLP();
 
   const info = await analyzeWithYTDLP(req.query.url);
 
@@ -228,7 +299,7 @@ app.get("/api/info", async (req, res) => {
 
 // SINGLE
 app.get("/api/download", async (req, res) => {
-  await ensureYTDLP();
+  // await ensureYTDLP();
   streamFromYTDLP(req.query.url, req.query.extension, res, req.query.title);
 });
 
@@ -288,6 +359,7 @@ if (isProd) {
 }
 
 app.listen(PORT, () => {
+  ensureYTDLP();
   console.log(`🚀 Servidor listo: ${url}`);
   if (!process.env.BROWSER_OPENED) {
     process.env.BROWSER_OPENED = "true";
