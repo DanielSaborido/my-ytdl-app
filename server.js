@@ -183,7 +183,8 @@ async function streamFromYTDLP(targetUrl, format, title, jobId) {
     );
   } else {
     args.push(
-      "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]",
+      "-f", "bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]/b[ext=mp4]",
+      "--remux-video", "mp4",
       "--merge-output-format", "mp4",
       "--ffmpeg-location", ffmpegPath
     );
@@ -192,7 +193,9 @@ async function streamFromYTDLP(targetUrl, format, title, jobId) {
   args.push(
     "--newline",
     "--progress",
+    "--concurrent-fragments", "50",
     "--retries", "3",
+    "--verbose",
     "--fragment-retries", "3",
     "--js-runtimes", "node",
     "-o", filepath,
