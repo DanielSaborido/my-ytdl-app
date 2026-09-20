@@ -106,9 +106,78 @@ export function totalPages() {
 // SINGLE DOWNLOAD
 // ============================
 async function downloadSingle(extension, video) {
-  const link = document.createElement("a")
-  link.href = `/api/download?url=${encodeURIComponent(video.url)}&extension=${extension}&title=${encodeURIComponent(video.title)}`
-  link.click()
+  const key = `${extension}-${video.url}`;
+
+  loadingButton.value = key;
+
+  // Create temporary progress information on the video
+  video.status = "starting";
+  video.progress = 0;
+  video.speed = null;
+  video.eta = null;
+
+  try {
+    const startRes = await fetch(
+      `/api/download/start?url=${encodeURIComponent(video.url)}` +
+      `&extension=${extension}` +
+      `&title=${encodeURIComponent(video.title)}`
+    );
+
+    if (!startRes.ok) {
+      throw new Error("Could not start download");
+    }
+
+    const { jobId } = await startRes.json();
+
+    let finished = false;
+
+    while (!finished) {
+      const statusRes = await fetch(
+        `/api/download/status?jobId=${jobId}`
+      );
+
+      const data = await statusRes.json();
+
+      video.status = data.status;
+      video.progress = data.progress || 0;
+      video.speed = data.speed;
+      video.eta = data.eta;
+
+      if (data.status === "completed") {
+        finished = true;
+
+        const link = document.createElement("a");
+
+        link.href =
+          `/api/download/file?jobId=${encodeURIComponent(jobId)}`;
+
+        link.download = data.file;
+
+        link.click();
+
+      } else if (data.status === "error") {
+        throw new Error(data.error || "Download failed");
+      }
+
+      if (!finished) {
+        await new Promise(resolve =>
+          setTimeout(resolve, 500)
+        );
+      }
+    }
+
+  } catch (err) {
+    console.error("Single download error:", err);
+
+    video.status = "error";
+
+    alert(
+      `Download failed:\n\n${err.message}`
+    );
+
+  } finally {
+    loadingButton.value = null;
+  }
 }
 
 // ============================
@@ -155,7 +224,23 @@ async function downloadPlaylist(extension, videos) {
     await new Promise(r => setTimeout(r, 500));
   }
 
-  alert("✅ Playlist descargada");
+  const failedVideos = data.videos.filter(
+    video => video.status === "error"
+  );
+
+  if (failedVideos.length > 0) {
+    const failedList = failedVideos
+      .map((video, index) => `${index + 1}. ${video.title}`)
+      .join("\n");
+
+    alert(
+      `⚠️ Algunos videos no se pudieron descargar:\n\n` +
+      `${failedList}\n\n` +
+      `Por favor, intenta descargarlos individualmente.`
+    );
+  } else {
+    alert("✅ Playlist descargada.");
+  }
 }
 
 // ============================

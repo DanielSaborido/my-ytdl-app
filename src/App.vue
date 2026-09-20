@@ -7,6 +7,8 @@ import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analy
 <template>
   <div class="container">
     <h1>{{ t.title }}</h1>
+
+    <!-- Analizar -->
     <div class="input-group">
       <input v-model="url" type="text" :placeholder="t.placeholder" />
       <button class="paste-btn" @click="pasteFromClipboard" :title="t.paste">📋</button>
@@ -21,6 +23,8 @@ import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analy
       </button>
       <button @click="clear">{{ t.clear }}</button>
     </div>
+
+    <!-- Video individual -->
     <div v-if="info && info.type === 'video'" class="info">
       <img :src="info.thumbnail" alt="Miniatura" />
       <h2>{{ info.title }}</h2>
@@ -40,7 +44,32 @@ import { url, info, loadingButton, currentPage, pasteFromClipboard, clear, analy
           <span v-else class="loader"></span>
         </button>
       </div>
+      <div
+        v-if="info.status === 'starting' || info.status === 'downloading'"
+        class="single-progress"
+      >
+        <div class="progress-bar">
+          <div
+            class="progress-fill"
+            :style="{ width: (info.progress || 0) + '%' }"
+          ></div>
+        </div>
+
+        <div class="progress-info">
+          <span>{{ (info.progress || 0).toFixed(1) }}%</span>
+
+          <span v-if="info.speed">
+            {{ info.speed }}
+          </span>
+
+          <span v-if="info.eta">
+            ETA: {{ info.eta }}
+          </span>
+        </div>
+      </div>
     </div>
+
+    <!-- Playlist -->
     <div v-if="info && info.type === 'playlist'" class="playlist-box">
       <h2>{{ t.playlist }}: {{ info.title }}</h2>
       <div class="buttons">

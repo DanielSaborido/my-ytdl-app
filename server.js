@@ -21,6 +21,7 @@ const YTDLP_PATH = path.join(BIN_DIR, YTDLP_FILE);
 const DOWNLOAD_DIR = path.join(os.tmpdir(), "yt-downloads");
 if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
+let singleDownloadJobs = {};
 let playlistJobs = {};
 
 // ===============================================================
@@ -161,21 +162,114 @@ function analyzeWithYTDLP(targetUrl) {
 // ===============================================================
 // STREAM SINGLE DOWNLOAD
 // ===============================================================
-function streamFromYTDLP(targetUrl, format, res, title) {
+async function streamFromYTDLP(targetUrl, format, title, jobId) {
   const ext = format === "audio" ? "mp3" : "mp4";
+
   const filename = `${safeTitle(title)}.${ext}`;
 
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.setHeader("Content-Type", "application/octet-stream");
+  const filepath = path.join(
+    DOWNLOAD_DIR,
+    `${Date.now()}-${filename}`
+  );
 
-  const args = format === "audio"
-    ? ["-f", "bestaudio", "--extract-audio", "--audio-format", "mp3"]
-    : ["-f", "mp4"];
+  const args = [];
 
-  args.push("--js-runtimes", "node", "-o", "-", targetUrl);
+  if (format === "audio") {
+    args.push(
+      "-f", "bestaudio",
+      "--extract-audio",
+      "--audio-format", "mp3",
+      "--ffmpeg-location", ffmpegPath
+    );
+  } else {
+    args.push(
+      "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]",
+      "--merge-output-format", "mp4",
+      "--ffmpeg-location", ffmpegPath
+    );
+  }
+
+  args.push(
+    "--newline",
+    "--progress",
+    "--retries", "3",
+    "--fragment-retries", "3",
+    "--js-runtimes", "node",
+    "-o", filepath,
+    targetUrl
+  );
+
+  console.log("Starting yt-dlp:", args.join(" "));
 
   const ytdlp = spawn(YTDLP_PATH, args);
-  ytdlp.stdout.pipe(res);
+
+  let stderr = "";
+
+  const updateProgress = output => {
+    stderr += output;
+
+    console.log("YT-DLP:", output);
+
+    const match = output.match(
+      /\[download\]\s+([\d.]+)%.*?at\s+([^\s]+).*?ETA\s+([^\s]+)/
+    );
+
+    if (match) {
+      const job = singleDownloadJobs[jobId];
+
+      if (job) {
+        job.status = "downloading";
+        job.progress = parseFloat(match[1]);
+        job.speed = match[2];
+        job.eta = match[3];
+      }
+    }
+  };
+
+  ytdlp.stdout.on("data", d => {
+    updateProgress(d.toString());
+  });
+
+  ytdlp.stderr.on("data", d => {
+    updateProgress(d.toString());
+  });
+
+  ytdlp.on("error", err => {
+    console.error("yt-dlp process error:", err);
+
+    const job = singleDownloadJobs[jobId];
+
+    if (job) {
+      job.status = "error";
+      job.error = err.message;
+    }
+  });
+
+  ytdlp.on("close", code => {
+    const job = singleDownloadJobs[jobId];
+
+    if (code !== 0 || !fs.existsSync(filepath)) {
+      console.error("yt-dlp failed:", stderr);
+
+      if (job) {
+        job.status = "error";
+        job.error = "yt-dlp failed";
+      }
+
+      return;
+    }
+
+    console.log("Download completed:", filepath);
+
+    if (job) {
+      job.status = "completed";
+      job.progress = 100;
+      job.speed = null;
+      job.eta = null;
+      job.file = filename;
+      job.filepath = filepath;
+    }
+  });
 }
 
 // ===============================================================
@@ -274,7 +368,7 @@ async function processPlaylist(jobId, extension) {
 const app = express();
 
 app.get("/api/info", async (req, res) => {
-  // await ensureYTDLP();
+  await ensureYTDLP();
 
   const info = await analyzeWithYTDLP(req.query.url);
 
@@ -297,10 +391,87 @@ app.get("/api/info", async (req, res) => {
   });
 });
 
-// SINGLE
-app.get("/api/download", async (req, res) => {
-  // await ensureYTDLP();
-  streamFromYTDLP(req.query.url, req.query.extension, res, req.query.title);
+// SINGLE DOWNLOADS
+app.get("/api/download/start", async (req, res) => {
+  try {
+    await ensureYTDLP();
+
+    const jobId =
+      Date.now().toString() +
+      Math.random().toString(36).slice(2);
+
+    singleDownloadJobs[jobId] = {
+      status: "starting",
+      progress: 0,
+      speed: null,
+      eta: null,
+      error: null,
+      file: null,
+      filepath: null
+    };
+
+    streamFromYTDLP(
+      req.query.url,
+      req.query.extension,
+      req.query.title,
+      jobId
+    );
+
+    res.json({ jobId });
+
+  } catch (err) {
+    console.error("Download start error:", err);
+
+    res.status(500).json({
+      error: "Download failed"
+    });
+  }
+});
+
+app.get("/api/download/status", (req, res) => {
+  const job = singleDownloadJobs[req.query.jobId];
+
+  if (!job) {
+    return res.status(404).json({
+      status: "error",
+      error: "Job not found"
+    });
+  }
+
+  res.json(job);
+});
+
+app.get("/api/download/file", (req, res) => {
+  const job = singleDownloadJobs[req.query.jobId];
+
+  if (!job || job.status !== "completed") {
+    return res.status(404).send("File not ready");
+  }
+
+  if (!job.filepath || !fs.existsSync(job.filepath)) {
+    return res.status(404).send("File not found");
+  }
+
+  res.download(job.filepath, job.file, err => {
+    fs.unlink(job.filepath, unlinkErr => {
+      if (unlinkErr) {
+        console.error(
+          "Could not delete temporary file:",
+          unlinkErr
+        );
+      }
+    });
+
+    delete singleDownloadJobs[req.query.jobId];
+
+    if (err) {
+      console.error("Response download error:", err);
+    }
+  });
+});
+
+app.get("/api/download", (req, res) => {
+  res.status(400).send("Use /api/download/start");
 });
 
 // START PLAYLIST
@@ -359,7 +530,6 @@ if (isProd) {
 }
 
 app.listen(PORT, () => {
-  ensureYTDLP();
   console.log(`🚀 Servidor listo: ${url}`);
   if (!process.env.BROWSER_OPENED) {
     process.env.BROWSER_OPENED = "true";
